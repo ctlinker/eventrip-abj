@@ -1,0 +1,39 @@
+{
+	"name": "db",
+	"version": "0.0.0",
+	"private": true,
+	"main": "./src/index.ts",
+	"types": "./src/index.ts",
+	"module": "./src/index.ts",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"import": "./src/index.ts",
+			"default": "./src/index.ts"
+		}
+	},
+	"scripts": {
+		"test": "vitest",
+		"db:migrate:local": "bunx wrangler d1 migrations apply eventrip-db --local --config ../../workers/api/wrangler.jsonc",
+		"db:migrate:prod": "bunx wrangler d1 migrations apply eventrip-db --remote --config ../../workers/api/wrangler.jsonc",
+		"db:types": "bun run db:gen-better-auth-migrations && bun run db:gen-kysely-types",
+		"db:gen-kysely-types": "bun run ./scripts/gen-kysely-types.ts",
+		"db:gen-better-auth-migrations": "bun run ./scripts/gen-better-auth-migration.ts"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-plugin": "^1.4.3",
+		"@types/node": "^26.6.6",
+		"typescript": "^5.5.2",
+		"vitest": "~5.0.3",
+		"wrangler": "^4.163.0",
+		"better-sqlite3": "^13.0.3"
+	},
+	"dependencies": {
+		"@better-auth/cli": "^1.4.21",
+		"@types/better-sqlite3": "^9.6.0",
+		"better-auth": "^1.7.7",
+		"kysely": "^0.29.6",
+		"kysely-codegen": "^0.20.0",
+		"kysely-d1": "^0.4.0"
+	}
+}
