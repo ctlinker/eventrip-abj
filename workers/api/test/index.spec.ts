@@ -3,6 +3,7 @@ import { beforeAll, describe, it, expect } from 'vitest';
 import migration001 from '../../../packages/db/migrations/001_better-auth.sql?raw';
 import migration002 from '../../../packages/db/migrations/002_domain.sql?raw';
 import migration003 from '../../../packages/db/migrations/003_communes_roundtrip.sql?raw';
+import migration004 from '../../../packages/db/migrations/004_event_single_price.sql?raw';
 import { expirePendingOrders } from '../src/services/orders';
 import { maybeBootstrapSuperAdmin } from '../src/lib/bootstrap';
 
@@ -52,6 +53,7 @@ describe('Eventrip API Core', () => {
 		await applySql(migration001);
 		await applySql(migration002);
 		await applySql(migration003);
+		await applySql(migration004);
 
 		const client = await signUpAndGetCookie('Kouame Client', 'client@eventrip.ci', '+2250700000001');
 		clientCookie = client.cookie;
@@ -71,7 +73,7 @@ describe('Eventrip API Core', () => {
 			.bind(admin2.userId)
 			.run();
 
-		// Créer un événement publié + catégorie + convoi
+		// Créer un événement publié avec prix unique + départ initial (55 pl. par défaut)
 		const evRes = await SELF.fetch('https://example.com/api/admin/events', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
@@ -80,15 +82,47 @@ describe('Eventrip API Core', () => {
 				description: 'Festival électro à Assinie',
 				starts_at: '2026-12-20T18:00:00Z',
 				venue: 'Assinie-Mafia',
+				price_xof: 15000,
 				wave_payment_url: 'https://pay.wave.com/m/M_ci_test',
 				status: 'published',
+				initial_departure: {
+					commune: 'Plateau',
+					meeting_point: 'Gare Lagunaire',
+					departure_at: '2026-12-20T13:00:00Z',
+				},
 			}),
 		});
 		expect(evRes.status).toBe(201);
-		const evData = (await evRes.json()) as { event: { id: string; slug: string } };
+		const evData = (await evRes.json()) as {
+			event: { id: string; slug: string; price_xof: number; convoys: Array<{ id: string; capacity: number }> };
+		};
+		expect(evData.event.price_xof).toBe(15000);
+		expect(evData.event.convoys[0].capacity).toBe(55);
 		eventId = evData.event.id;
 		eventSlug = evData.event.slug;
 
+		// Ajouter un 2e départ (Cocody, 55 pl. par défaut, prix 0 car déterminé par l'événement)
+		const convRes = await SELF.fetch(`https://example.com/api/admin/events/${eventId}/convoys`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({
+				name: 'Départ Cocody',
+				commune: 'Cocody',
+				departure_at: '2026-12-20T14:00:00Z',
+				meeting_point: 'Angré 8e Tranche',
+				destination: 'Assinie-Mafia',
+			}),
+		});
+		expect(convRes.status).toBe(201);
+		const createdConvoy = (await convRes.json()) as {
+			convoy: { id: string; capacity: number; commune: string; price_xof: number };
+		};
+		expect(createdConvoy.convoy.capacity).toBe(55);
+		expect(createdConvoy.convoy.commune).toBe('Cocody');
+		expect(createdConvoy.convoy.price_xof).toBe(0);
+		convoyId = createdConvoy.convoy.id;
+
+		// Réduire capacité d'une catégorie legacy pour tests mixtes si besoin
 		const catRes = await SELF.fetch(`https://example.com/api/admin/events/${eventId}/categories`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
@@ -96,25 +130,6 @@ describe('Eventrip API Core', () => {
 		});
 		expect(catRes.status).toBe(201);
 		categoryId = ((await catRes.json()) as { category: { id: string } }).category.id;
-
-		const convRes = await SELF.fetch(`https://example.com/api/admin/events/${eventId}/convoys`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
-			body: JSON.stringify({
-				name: 'Départ Cocody -> Assinie',
-				commune: 'Cocody',
-				departure_at: '2026-12-20T14:00:00Z',
-				meeting_point: 'Angré 8e Tranche',
-				destination: 'Assinie-Mafia',
-				trip_type: 'round_trip',
-				price_xof: 5000,
-			}),
-		});
-		expect(convRes.status).toBe(201);
-		const createdConvoy = (await convRes.json()) as { convoy: { id: string; capacity: number; commune: string } };
-		expect(createdConvoy.convoy.capacity).toBe(55);
-		expect(createdConvoy.convoy.commune).toBe('Cocody');
-		convoyId = createdConvoy.convoy.id;
 	});
 
 	it('responds on /api/health and lists published events', async () => {
@@ -127,7 +142,7 @@ describe('Eventrip API Core', () => {
 		expect(data.events.length).toBe(1);
 		expect(data.events[0].slug).toBe(eventSlug);
 		expect(data.events[0].categories.length).toBe(1);
-		expect(data.events[0].convoys.length).toBe(1);
+		expect(data.events[0].convoys.length).toBe(2);
 	});
 
 	it('handles mixed order, proof upload, permission check, Wave confirmation, QR scan, and expiration', async () => {
@@ -147,10 +162,10 @@ describe('Eventrip API Core', () => {
 			order: { id: string; total_amount_xof: number; status: string };
 			payment: { id: string };
 		};
-		expect(orderData.order.total_amount_xof).toBe(35000);
+		expect(orderData.order.total_amount_xof).toBe(45000);
 		expect(orderData.order.status).toBe('pending_payment');
 
-		// Vérifier que GET /api/orders/:id génère wave_payment_url avec ?amount=35000
+		// Vérifier que GET /api/orders/:id génère wave_payment_url avec ?amount=45000
 		const orderDetailRes = await SELF.fetch(`https://example.com/api/orders/${orderData.order.id}`, {
 			headers: { Cookie: clientCookie },
 		});
@@ -158,7 +173,7 @@ describe('Eventrip API Core', () => {
 		const detailData = (await orderDetailRes.json()) as {
 			payment: { wave_payment_url: string | null };
 		};
-		expect(detailData.payment.wave_payment_url).toBe('https://pay.wave.com/m/M_ci_test?amount=35000');
+		expect(detailData.payment.wave_payment_url).toBe('https://pay.wave.com/m/M_ci_test?amount=45000');
 
 		// 2. Dépassement de capacité refusé (409) et places non corrompues
 		const overRes = await SELF.fetch('https://example.com/api/orders', {

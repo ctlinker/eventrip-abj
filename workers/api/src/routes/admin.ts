@@ -63,28 +63,78 @@ adminRoutes.get('/events', async (c) => {
 
 adminRoutes.post('/events', async (c) => {
 	const user = c.get('user');
-	const body = await c.req.json<{
-		title?: string;
-		slug?: string;
-		description?: string;
-		starts_at?: string;
-		ends_at?: string | null;
-		venue?: string;
-		extra_info?: string | null;
-		wave_payment_url?: string | null;
-		sales_start_at?: string | null;
-		sales_end_at?: string | null;
-		status?: 'draft' | 'published' | 'archived';
-	}>();
+	const body = await c.req
+		.json<{
+			title?: string;
+			slug?: string;
+			description?: string;
+			starts_at?: string;
+			ends_at?: string | null;
+			venue?: string;
+			price_xof?: number;
+			extra_info?: string | null;
+			wave_payment_url?: string | null;
+			sales_start_at?: string | null;
+			sales_end_at?: string | null;
+			status?: 'draft' | 'published' | 'archived';
+			initial_departure?: {
+				commune?: string;
+				meeting_point?: string;
+				departure_at?: string;
+				capacity?: number;
+			};
+		}>()
+		.catch(
+			(): {
+				title?: string;
+				slug?: string;
+				description?: string;
+				starts_at?: string;
+				ends_at?: string | null;
+				venue?: string;
+				price_xof?: number;
+				extra_info?: string | null;
+				wave_payment_url?: string | null;
+				sales_start_at?: string | null;
+				sales_end_at?: string | null;
+				status?: 'draft' | 'published' | 'archived';
+				initial_departure?: {
+					commune?: string;
+					meeting_point?: string;
+					departure_at?: string;
+					capacity?: number;
+				};
+			} => ({}),
+		);
 
-	if (!body.title || !body.description || !body.starts_at || !body.venue) {
-		return c.json({ error: 'Champs requis : title, description, starts_at, venue' }, 400);
+	const dep = body.initial_departure;
+	if (
+		!body.title ||
+		!body.description ||
+		!body.starts_at ||
+		!body.venue ||
+		!Number.isInteger(body.price_xof) ||
+		(body.price_xof as number) < 0 ||
+		!dep?.commune?.trim() ||
+		!dep?.meeting_point?.trim() ||
+		!dep?.departure_at
+	) {
+		return c.json(
+			{
+				error:
+					'Champs requis : title, description, starts_at, venue, price_xof (>= 0) et initial_departure (commune, meeting_point, departure_at)',
+			},
+			400,
+		);
 	}
 
 	const id = crypto.randomUUID();
+	const convoyId = crypto.randomUUID();
 	const now = nowIso();
 	const baseSlug = slugify(body.slug || body.title) || id.slice(0, 8);
 	const slug = `${baseSlug}-${id.slice(0, 4)}`;
+	const capacity =
+		Number.isInteger(dep.capacity) && (dep.capacity as number) > 0 ? dep.capacity! : 55;
 	const db = getDB(c.env.DB);
 
 	await db
@@ -98,6 +148,7 @@ adminRoutes.post('/events', async (c) => {
 			starts_at: body.starts_at,
 			ends_at: body.ends_at ?? null,
 			venue: body.venue.trim(),
+			price_xof: body.price_xof!,
 			extra_info: body.extra_info ?? null,
 			wave_payment_url: body.wave_payment_url ?? null,
 			sales_start_at: body.sales_start_at ?? null,
@@ -109,8 +160,45 @@ adminRoutes.post('/events', async (c) => {
 		})
 		.execute();
 
-	const event = await db.selectFrom('events').selectAll().where('id', '=', id).executeTakeFirst();
-	return c.json({ event }, 201);
+	await db
+		.insertInto('convoys')
+		.values({
+			id: convoyId,
+			event_id: id,
+			name: `Départ ${dep.commune.trim()}`,
+			commune: dep.commune.trim(),
+			departure_at: dep.departure_at,
+			meeting_point: dep.meeting_point.trim(),
+			destination: body.venue.trim(),
+			trip_type: 'round_trip',
+			price_xof: 0,
+			capacity,
+			reserved_count: 0,
+			extra_info: null,
+			status: 'published',
+			created_at: now,
+			updated_at: now,
+		})
+		.execute();
+
+	const [event, convoy] = await Promise.all([
+		db.selectFrom('events').selectAll().where('id', '=', id).executeTakeFirst(),
+		db.selectFrom('convoys').selectAll().where('id', '=', convoyId).executeTakeFirst(),
+	]);
+
+	return c.json(
+		{
+			event: event
+				? {
+						...event,
+						poster_keys: [],
+						categories: [],
+						convoys: convoy ? [convoy] : [],
+					}
+				: null,
+		},
+		201,
+	);
 });
 
 adminRoutes.patch('/events/:id', async (c) => {
@@ -126,6 +214,7 @@ adminRoutes.patch('/events/:id', async (c) => {
 		'starts_at',
 		'ends_at',
 		'venue',
+		'price_xof',
 		'extra_info',
 		'wave_payment_url',
 		'sales_start_at',
@@ -309,6 +398,7 @@ adminRoutes.post('/events/:id/convoys', async (c) => {
 	const tripType = body.trip_type ?? 'round_trip';
 	const capacity =
 		Number.isInteger(body.capacity) && (body.capacity as number) > 0 ? body.capacity! : 55;
+	const priceXof = Number.isInteger(body.price_xof) && (body.price_xof as number) >= 0 ? body.price_xof! : 0;
 	const commune = (body.commune || body.meeting_point || body.name || '').trim();
 
 	if (
@@ -317,8 +407,7 @@ adminRoutes.post('/events/:id/convoys', async (c) => {
 		!body.departure_at ||
 		!body.meeting_point ||
 		!body.destination ||
-		(tripType !== 'one_way' && tripType !== 'round_trip') ||
-		!Number.isInteger(body.price_xof)
+		(tripType !== 'one_way' && tripType !== 'round_trip')
 	) {
 		return c.json({ error: 'Paramètres de convoi invalides' }, 400);
 	}
@@ -338,7 +427,7 @@ adminRoutes.post('/events/:id/convoys', async (c) => {
 			meeting_point: body.meeting_point.trim(),
 			destination: body.destination.trim(),
 			trip_type: tripType,
-			price_xof: body.price_xof!,
+			price_xof: priceXof,
 			capacity,
 			reserved_count: 0,
 			extra_info: body.extra_info ?? null,

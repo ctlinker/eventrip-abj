@@ -80,6 +80,7 @@ export interface PublicEvent {
 	starts_at: string;
 	ends_at: string | null;
 	venue: string;
+	price_xof: number;
 	extra_info: string | null;
 	wave_payment_url: string | null;
 	categories: TicketCategory[];

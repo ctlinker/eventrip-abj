@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Calendar, MapPin, Bus, Ticket, Minus, Plus, ShoppingBag } from 'lucide-preact';
+import { Calendar, MapPin, Bus, Minus, Plus, ShoppingBag, CheckCircle2 } from 'lucide-preact';
 import {
 	apiFetch,
 	formatDate,
@@ -18,15 +18,21 @@ export default function EventCheckout({ slug }: Props) {
 	const [event, setEvent] = useState<PublicEvent | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [catQty, setCatQty] = useState<Record<string, number>>({});
-	const [convQty, setConvQty] = useState<Record<string, number>>({});
 	const [preferredCommune, setPreferredCommune] = useState('');
+	const [selectedConvoyId, setSelectedConvoyId] = useState<string>('');
+	const [quantity, setQuantity] = useState(1);
 	const [submitting, setSubmitting] = useState(false);
 
 	useEffect(() => {
-		setPreferredCommune(localStorage.getItem('eventrip_commune') || '');
+		const savedCommune = localStorage.getItem('eventrip_commune') || '';
+		setPreferredCommune(savedCommune);
 		apiFetch<{ event: PublicEvent }>(`/api/events/${slug}`)
-			.then((data) => setEvent(data.event))
+			.then((data) => {
+				setEvent(data.event);
+				const sorted = sortConvoysByCommune(data.event.convoys, savedCommune);
+				const firstAvailable = sorted.find((cv) => cv.remaining > 0) || sorted[0];
+				if (firstAvailable) setSelectedConvoyId(firstAvailable.id);
+			})
 			.catch((err) => setError(err.message))
 			.finally(() => setLoading(false));
 	}, [slug]);
@@ -35,40 +41,46 @@ export default function EventCheckout({ slug }: Props) {
 		return <div class="h-96 rounded-2xl border border-green-100 bg-green-50/40 animate-pulse" />;
 	}
 
-	if (error || !event) {
+	if (error && !event) {
 		return (
 			<div class="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
-				{error || 'Événement introuvable'}
+				{error}
 			</div>
 		);
 	}
 
-	const totalAmount =
-		event.categories.reduce((sum, c) => sum + (catQty[c.id] || 0) * c.price_xof, 0) +
-		event.convoys.reduce((sum, cv) => sum + (convQty[cv.id] || 0) * cv.price_xof, 0);
+	if (!event) {
+		return (
+			<div class="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+				Événement introuvable
+			</div>
+		);
+	}
 
-	const totalItems =
-		Object.values(catQty).reduce((a, b) => a + b, 0) +
-		Object.values(convQty).reduce((a, b) => a + b, 0);
+	const sortedConvoys = sortConvoysByCommune(event.convoys, preferredCommune);
+	const selectedConvoy = sortedConvoys.find((cv) => cv.id === selectedConvoyId) || null;
+	const ticketPrice =
+		event.price_xof > 0
+			? event.price_xof
+			: event.categories.length > 0
+				? event.categories[0].price_xof
+				: 0;
+	const maxQty = selectedConvoy ? Math.min(50, selectedConvoy.remaining) : 0;
+	const safeQty = maxQty > 0 ? Math.min(quantity, maxQty) : 0;
+	const totalAmount = safeQty * ticketPrice;
 
 	async function handleCheckout() {
-		if (!event || totalItems === 0) return;
+		if (!selectedConvoy || safeQty < 1) return;
 		setSubmitting(true);
 		setError(null);
-
-		const items = [
-			...Object.entries(catQty)
-				.filter(([, q]) => q > 0)
-				.map(([id, quantity]) => ({ type: 'ticket_category' as const, id, quantity })),
-			...Object.entries(convQty)
-				.filter(([, q]) => q > 0)
-				.map(([id, quantity]) => ({ type: 'convoy' as const, id, quantity })),
-		];
 
 		try {
 			const res = await apiFetch<{ order: { id: string } }>('/api/orders', {
 				method: 'POST',
-				body: JSON.stringify({ items }),
+				body: JSON.stringify({
+					convoy_id: selectedConvoy.id,
+					quantity: safeQty,
+				}),
 			});
 			window.location.href = `/orders/${res.order.id}`;
 		} catch (err: any) {
@@ -91,10 +103,15 @@ export default function EventCheckout({ slug }: Props) {
 						<EventImageCarousel urls={posterUrls} alt={event.title} aspectClass="aspect-[16/9]" />
 					)}
 					<div class="p-6 sm:p-8">
-						<span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-200">
-							<Calendar class="h-3.5 w-3.5" />
-							{formatDate(event.starts_at)}
-						</span>
+						<div class="flex flex-wrap items-center justify-between gap-3">
+							<span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-200">
+								<Calendar class="h-3.5 w-3.5" />
+								{formatDate(event.starts_at)}
+							</span>
+							<span class="text-lg font-bold text-green-700">
+								{formatXof(ticketPrice)} <span class="text-xs font-normal text-slate-500">/ billet (Aller-Retour inclus)</span>
+							</span>
+						</div>
 						<h1 class="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
 							{event.title}
 						</h1>
@@ -115,136 +132,112 @@ export default function EventCheckout({ slug }: Props) {
 
 				<section class="rounded-2xl border border-green-100 bg-white p-6">
 					<h2 class="flex items-center gap-2 text-lg font-bold text-slate-900">
-						<Ticket class="h-5 w-5 text-green-600" />
-						Catégories de tickets
+						<Bus class="h-5 w-5 text-green-600" />
+						Choisissez votre commune de départ
 					</h2>
-					{event.categories.length === 0 ? (
+					<p class="mt-1 text-xs text-slate-500">
+						Tous les départs incluent l’aller-retour (QR code scannable 2 fois) au tarif unique de{' '}
+						<strong>{formatXof(ticketPrice)}</strong>.
+					</p>
+
+					{sortedConvoys.length === 0 ? (
 						<p class="mt-4 text-sm text-slate-500">
-							Aucune catégorie de ticket n'est encore configurée pour cet événement.
+							Aucun départ configuré pour cet événement pour le moment.
 						</p>
 					) : (
-					<div class="mt-4 divide-y divide-green-50">
-						{event.categories.map((cat) => {
-							const qty = catQty[cat.id] || 0;
-							return (
-								<div key={cat.id} class="py-4 flex items-center justify-between gap-4">
-									<div>
-										<p class="font-semibold text-slate-900">{cat.name}</p>
-										{cat.description && <p class="text-sm text-slate-500">{cat.description}</p>}
-										<p class="mt-1 text-sm font-bold text-green-700">
-											{formatXof(cat.price_xof)}{' '}
-											<span class="font-normal text-xs text-slate-500">
-												· {cat.remaining} restant(s)
-											</span>
-										</p>
-									</div>
-									<div class="flex items-center gap-2">
-										<button
-											type="button"
-											disabled={qty === 0}
-											onClick={() => setCatQty({ ...catQty, [cat.id]: Math.max(0, qty - 1) })}
-											class="h-9 w-9 rounded-xl border border-green-200 flex items-center justify-center text-slate-700 hover:bg-green-50 disabled:opacity-40 cursor-pointer"
-										>
-											<Minus class="h-4 w-4" />
-										</button>
-										<span class="w-8 text-center font-semibold">{qty}</span>
-										<button
-											type="button"
-											disabled={qty >= cat.remaining}
-											onClick={() =>
-												setCatQty({ ...catQty, [cat.id]: Math.min(cat.remaining, qty + 1) })
-											}
-											class="h-9 w-9 rounded-xl border border-green-200 flex items-center justify-center text-slate-700 hover:bg-green-50 disabled:opacity-40 cursor-pointer"
-										>
-											<Plus class="h-4 w-4" />
-										</button>
-									</div>
-								</div>
-							);
-						})}
-					</div>
-					)}
-				</section>
-
-				{event.convoys.length > 0 && (
-					<section class="rounded-2xl border border-green-100 bg-white p-6">
-						<h2 class="flex items-center gap-2 text-lg font-bold text-slate-900">
-							<Bus class="h-5 w-5 text-green-600" />
-							Convois de transport associés
-						</h2>
-						<div class="mt-4 divide-y divide-green-50">
-							{sortConvoysByCommune(event.convoys, preferredCommune).map((cv) => {
-								const qty = convQty[cv.id] || 0;
+						<div class="mt-4 space-y-3">
+							{sortedConvoys.map((cv) => {
 								const isMatch =
 									Boolean(preferredCommune) &&
 									(cv.commune || '').toLowerCase() === preferredCommune.toLowerCase();
+								const isSelected = selectedConvoyId === cv.id;
+								const soldOut = cv.remaining <= 0;
+
 								return (
-									<div key={cv.id} class="py-4 flex items-center justify-between gap-4">
-										<div>
-											<p class="font-semibold text-slate-900">
-												{cv.commune ? `${cv.commune} — ` : ''}
-												{cv.name}{' '}
-												{isMatch && (
-													<span class="ml-1 rounded-full bg-green-600 px-2 py-0.5 text-xs text-white">
-														Votre commune
+									<button
+										key={cv.id}
+										type="button"
+										disabled={soldOut}
+										onClick={() => {
+											setSelectedConvoyId(cv.id);
+											setQuantity(1);
+										}}
+										class={`w-full text-left rounded-2xl border p-4 transition-all cursor-pointer disabled:opacity-50 ${
+											isSelected
+												? 'border-green-600 bg-green-50/60 ring-2 ring-green-500/20'
+												: 'border-green-100 bg-white hover:border-green-300'
+										}`}
+									>
+										<div class="flex items-start justify-between gap-3">
+											<div>
+												<div class="flex flex-wrap items-center gap-2">
+													<span class="font-bold text-slate-900">
+														Départ {cv.commune || cv.name}
 													</span>
-												)}
-												<span class="ml-1 rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 border border-green-200">
-													{cv.trip_type === 'round_trip' ? 'Aller-retour (2 scans)' : 'Aller simple'}
-												</span>
-											</p>
-											<p class="text-sm text-slate-600">
-												Départ : {formatDate(cv.departure_at)} · {cv.meeting_point} →{' '}
-												{cv.destination}
-											</p>
-											<p class="mt-1 text-sm font-bold text-green-700">
-												{formatXof(cv.price_xof)}{' '}
-												<span class="font-normal text-xs text-slate-500">
-													· {cv.remaining} place(s)
-												</span>
-											</p>
+													{isMatch && (
+														<span class="rounded-full bg-green-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+															Votre commune
+														</span>
+													)}
+												</div>
+												<p class="mt-1 text-sm text-slate-600">
+													Rassemblement : <strong>{cv.meeting_point}</strong> ·{' '}
+													{formatDate(cv.departure_at)}
+												</p>
+												<p class="mt-1 text-xs font-semibold text-green-700">
+													{soldOut ? 'Complet' : `${cv.remaining} / ${cv.capacity} places disponibles`}
+												</p>
+											</div>
+											{isSelected && <CheckCircle2 class="h-5 w-5 text-green-600 shrink-0" />}
 										</div>
-										<div class="flex items-center gap-2">
-											<button
-												type="button"
-												disabled={qty === 0}
-												onClick={() =>
-													setConvQty({ ...convQty, [cv.id]: Math.max(0, qty - 1) })
-												}
-												class="h-9 w-9 rounded-xl border border-green-200 flex items-center justify-center text-slate-700 hover:bg-green-50 disabled:opacity-40 cursor-pointer"
-											>
-												<Minus class="h-4 w-4" />
-											</button>
-											<span class="w-8 text-center font-semibold">{qty}</span>
-											<button
-												type="button"
-												disabled={qty >= cv.remaining}
-												onClick={() =>
-													setConvQty({
-														...convQty,
-														[cv.id]: Math.min(cv.remaining, qty + 1),
-													})
-												}
-												class="h-9 w-9 rounded-xl border border-green-200 flex items-center justify-center text-slate-700 hover:bg-green-50 disabled:opacity-40 cursor-pointer"
-											>
-												<Plus class="h-4 w-4" />
-											</button>
-										</div>
-									</div>
+									</button>
 								);
 							})}
 						</div>
-					</section>
-				)}
+					)}
+				</section>
 			</div>
 
 			<aside class="lg:col-span-1">
 				<div class="sticky top-24 rounded-2xl border border-green-200 bg-green-50/50 p-6 space-y-5">
 					<h3 class="text-lg font-bold text-slate-900">Votre commande</h3>
-					<div class="space-y-2 text-sm text-slate-600">
+
+					{selectedConvoy && (
+						<div class="rounded-xl border border-green-200 bg-white p-3.5 text-sm">
+							<p class="font-semibold text-slate-900">
+								Départ : {selectedConvoy.commune || selectedConvoy.name}
+							</p>
+							<p class="text-xs text-slate-500 mt-0.5">{selectedConvoy.meeting_point}</p>
+						</div>
+					)}
+
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-medium text-slate-700">Nombre de billets</span>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								disabled={safeQty <= 1}
+								onClick={() => setQuantity(Math.max(1, safeQty - 1))}
+								class="h-9 w-9 rounded-xl border border-green-200 bg-white flex items-center justify-center text-slate-700 hover:bg-green-50 disabled:opacity-40 cursor-pointer"
+							>
+								<Minus class="h-4 w-4" />
+							</button>
+							<span class="w-8 text-center font-semibold">{safeQty}</span>
+							<button
+								type="button"
+								disabled={safeQty >= maxQty}
+								onClick={() => setQuantity(Math.min(maxQty, safeQty + 1))}
+								class="h-9 w-9 rounded-xl border border-green-200 bg-white flex items-center justify-center text-slate-700 hover:bg-green-50 disabled:opacity-40 cursor-pointer"
+							>
+								<Plus class="h-4 w-4" />
+							</button>
+						</div>
+					</div>
+
+					<div class="space-y-2 text-sm text-slate-600 pt-2 border-t border-green-200">
 						<div class="flex justify-between">
-							<span>Articles sélectionnés</span>
-							<span class="font-semibold text-slate-900">{totalItems}</span>
+							<span>Prix unitaire</span>
+							<span class="font-semibold text-slate-900">{formatXof(ticketPrice)}</span>
 						</div>
 						<div class="flex justify-between text-base font-bold text-slate-900 pt-2 border-t border-green-200">
 							<span>Total à régler</span>
@@ -253,7 +246,7 @@ export default function EventCheckout({ slug }: Props) {
 					</div>
 
 					<p class="text-xs text-slate-500">
-						Vos places sont réservées pendant <strong>2 heures</strong> dès la validation de la commande pour effectuer votre paiement Wave.
+						Vos places sont réservées pendant <strong>2 heures</strong> dès la commande pour effectuer votre paiement Wave.
 					</p>
 
 					{error && (
@@ -264,7 +257,7 @@ export default function EventCheckout({ slug }: Props) {
 
 					<button
 						type="button"
-						disabled={totalItems === 0 || submitting}
+						disabled={!selectedConvoy || safeQty < 1 || submitting}
 						onClick={handleCheckout}
 						class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer"
 					>

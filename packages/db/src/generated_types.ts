@@ -63,6 +63,7 @@ export interface Events {
   extra_info: string | null;
   id: string;
   poster_key: string | null;
+  price_xof: Generated<number>;
   sales_end_at: string | null;
   sales_start_at: string | null;
   slug: string;

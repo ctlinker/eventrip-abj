@@ -86,18 +86,40 @@ export default function EventsCatalog() {
 
 			<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
 				{events.map((event) => {
-					const minPrice =
-						event.categories.length > 0
-							? Math.min(...event.categories.map((c) => c.price_xof))
-							: null;
-					const totalRemaining = event.categories.reduce((acc, c) => acc + c.remaining, 0);
-					const posterUrls = getEventPosterUrls(event);
 					const prioritizedConvoys = sortConvoysByCommune(event.convoys, commune);
-					const topConvoy = prioritizedConvoys[0];
-					const isCommuneMatch =
-						Boolean(commune) &&
-						Boolean(topConvoy) &&
-						(topConvoy.commune || '').toLowerCase() === commune.toLowerCase();
+					const displayPrice =
+						event.price_xof > 0
+							? event.price_xof
+							: event.categories.length > 0
+								? Math.min(...event.categories.map((c) => c.price_xof))
+								: null;
+					const totalRemaining =
+						prioritizedConvoys.length > 0
+							? prioritizedConvoys.reduce((acc, cv) => acc + cv.remaining, 0)
+							: event.categories.reduce((acc, c) => acc + c.remaining, 0);
+					const posterUrls = getEventPosterUrls(event);
+
+					const renderChips = (copyKey: string) =>
+						prioritizedConvoys.map((cv) => {
+							const isMatch =
+								Boolean(commune) &&
+								(cv.commune || '').toLowerCase() === commune.toLowerCase();
+							return (
+								<span
+									key={`${copyKey}-${cv.id}`}
+									class={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-semibold border ${
+										isMatch
+											? 'bg-green-600 text-white border-green-600'
+											: 'bg-white text-green-800 border-green-200'
+									}`}
+								>
+									<Bus class="h-3 w-3" />
+									<span>
+										{cv.commune || cv.name} · {cv.remaining}/{cv.capacity}
+									</span>
+								</span>
+							);
+						});
 
 					return (
 						<a
@@ -105,24 +127,22 @@ export default function EventsCatalog() {
 							href={`/events/${event.slug}`}
 							class="group flex flex-col overflow-hidden rounded-2xl border border-green-100 bg-white shadow-xs hover:border-green-300 hover:shadow-md transition-all"
 						>
-							<div class="relative">
-								<EventImageCarousel urls={posterUrls} alt={event.title} aspectClass="aspect-[16/10]" />
-								{topConvoy && (
-									<span
-										class={`absolute top-3 left-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold shadow-xs border ${
-											isCommuneMatch
-												? 'bg-green-600 text-white border-green-600'
-												: 'bg-white/95 text-green-700 border-green-100'
-										}`}
-									>
-										<Bus class="h-3.5 w-3.5" />
-										<span>
-											Départ {topConvoy.commune || topConvoy.name} · {topConvoy.remaining}/{topConvoy.capacity}
-											{event.convoys.length > 1 ? ` (+${event.convoys.length - 1})` : ''}
-										</span>
-									</span>
-								)}
-							</div>
+							<EventImageCarousel urls={posterUrls} alt={event.title} aspectClass="aspect-[16/10]" />
+
+							{prioritizedConvoys.length > 0 && (
+								<div class="overflow-hidden border-y border-green-100 bg-green-50/70 py-2 px-3">
+									{prioritizedConvoys.length === 1 ? (
+										<div class="flex items-center gap-2">{renderChips('single')}</div>
+									) : (
+										<div class="animate-departure-marquee gap-2">
+											<div class="flex items-center gap-2 pr-2">{renderChips('a')}</div>
+											<div class="flex items-center gap-2 pr-2" aria-hidden="true">
+												{renderChips('b')}
+											</div>
+										</div>
+									)}
+								</div>
+							)}
 
 							<div class="flex flex-1 flex-col p-5">
 								<p class="text-xs font-semibold uppercase tracking-wide text-green-600">
@@ -138,12 +158,12 @@ export default function EventsCatalog() {
 
 								<div class="mt-auto pt-5 flex items-center justify-between border-t border-green-50">
 									<div>
-										{minPrice !== null ? (
+										{displayPrice !== null ? (
 											<p class="text-sm font-bold text-slate-900">
-												À partir de <span class="text-green-700">{formatXof(minPrice)}</span>
+												Ticket : <span class="text-green-700">{formatXof(displayPrice)}</span>
 											</p>
 										) : (
-											<p class="text-sm text-slate-500">Tarifs à venir</p>
+											<p class="text-sm text-slate-500">Tarif à venir</p>
 										)}
 										<p class="text-xs text-slate-500">{totalRemaining} places restantes</p>
 									</div>

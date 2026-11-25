@@ -231,13 +231,17 @@ export default function TicketsWallet() {
 							<p class="mt-1 text-sm font-semibold text-green-700">
 								{t.item_type === 'convoy_ticket' ? (
 									<span class="inline-flex items-center gap-1.5">
-										<Bus class="h-4 w-4" /> Convoi : {t.convoy_name}
+										<Bus class="h-4 w-4" /> Départ {t.convoy_commune || t.convoy_name}
 									</span>
 								) : (
-									<span>Catégorie : {t.category_name}</span>
+									<span>{t.category_name || 'Billet événement'}</span>
 								)}
-								{' · '}
-								<span>{formatXof(t.price_xof)}</span>
+								{typeof t.price_xof === 'number' && (
+									<>
+										{' · '}
+										<span>{formatXof(t.price_xof)}</span>
+									</>
+								)}
 							</p>
 
 							<div class="mt-3 space-y-1 text-xs text-slate-600">

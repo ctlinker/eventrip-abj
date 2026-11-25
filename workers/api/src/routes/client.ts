@@ -66,15 +66,28 @@ interface CreateOrderItemInput {
 
 clientRoutes.post('/orders', async (c) => {
 	const user = c.get('user');
-	const body = await c.req.json<{ items?: CreateOrderItemInput[] }>().catch(() => ({ items: [] }));
+	const bodyRes = await tryCatch(
+		c.req.json<{
+			items?: CreateOrderItemInput[];
+			convoy_id?: string;
+			quantity?: number;
+		}>(),
+	);
+	const body = bodyRes.ok ? bodyRes.data : {};
 
-	if (!Array.isArray(body.items) || body.items.length === 0) {
-		return c.json({ error: 'La commande doit contenir au moins un article' }, 400);
+	const rawItems: CreateOrderItemInput[] = Array.isArray(body.items) && body.items.length > 0
+		? body.items
+		: typeof body.convoy_id === 'string' && Number.isInteger(body.quantity)
+			? [{ type: 'convoy', id: body.convoy_id, quantity: body.quantity! }]
+			: [];
+
+	if (rawItems.length === 0) {
+		return c.json({ error: 'La commande doit contenir un départ et une quantité' }, 400);
 	}
 
 	// Agréger les doublons d'articles dans la requête
 	const mergedMap = new Map<string, CreateOrderItemInput>();
-	for (const raw of body.items) {
+	for (const raw of rawItems) {
 		if (
 			(raw?.type !== 'ticket_category' && raw?.type !== 'convoy') ||
 			typeof raw.id !== 'string' ||
@@ -151,23 +164,32 @@ clientRoutes.post('/orders', async (c) => {
 				.select([
 					'cv.id',
 					'cv.event_id',
-					'cv.price_xof',
+					'cv.price_xof as convoy_price_xof',
 					'cv.status as convoy_status',
+					'e.price_xof as event_price_xof',
 					'e.status as event_status',
+					'e.sales_start_at',
+					'e.sales_end_at',
 					'e.wave_payment_url',
 				])
 				.where('cv.id', '=', item.id)
 				.executeTakeFirst();
 
 			if (!row || row.convoy_status !== 'published' || row.event_status !== 'published') {
-				return c.json({ error: 'Convoi indisponible' }, 404);
+				return c.json({ error: 'Départ indisponible' }, 404);
+			}
+			if (row.sales_start_at && now < row.sales_start_at) {
+				return c.json({ error: 'La vente pour cet événement n’a pas encore commencé' }, 400);
+			}
+			if (row.sales_end_at && now > row.sales_end_at) {
+				return c.json({ error: 'La période de vente pour cet événement est terminée' }, 400);
 			}
 			resolved.push({
 				type: 'convoy',
 				id: row.id,
 				eventId: row.event_id,
 				quantity: item.quantity,
-				unitPriceXof: row.price_xof,
+				unitPriceXof: row.event_price_xof > 0 ? row.event_price_xof : row.convoy_price_xof,
 				wavePaymentUrl: row.wave_payment_url,
 			});
 		}
