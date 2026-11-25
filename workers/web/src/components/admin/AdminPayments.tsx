@@ -48,7 +48,13 @@ export default function AdminPayments() {
 				method: 'POST',
 				body: JSON.stringify({}),
 			});
-			load(filter);
+			setPayments((prev) =>
+				filter === 'pending'
+					? prev.filter((p) => p.id !== id)
+					: prev.map((p) =>
+							p.id === id ? { ...p, status: 'confirmed', order_status: 'confirmed' } : p,
+						),
+			);
 		} catch (err: any) {
 			setError(err.message);
 		}
@@ -66,7 +72,15 @@ export default function AdminPayments() {
 				method: 'POST',
 				body: JSON.stringify({ rejection_reason: reason }),
 			});
-			load(filter);
+			setPayments((prev) =>
+				filter === 'pending'
+					? prev.filter((p) => p.id !== id)
+					: prev.map((p) =>
+							p.id === id
+								? { ...p, status: 'rejected', order_status: 'rejected', rejection_reason: reason }
+								: p,
+						),
+			);
 		} catch (err: any) {
 			setError(err.message);
 		}

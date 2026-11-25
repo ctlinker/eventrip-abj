@@ -65,26 +65,51 @@ export default function AdminEvents() {
 				}),
 			});
 
+			const newCategories: AdminEvent['categories'] = [];
 			if (created.event?.id && initialCatName.trim() && initialPrice !== '' && initialCapacity !== '') {
-				await apiFetch(`/api/admin/events/${created.event.id}/categories`, {
-					method: 'POST',
-					body: JSON.stringify({
-						name: initialCatName.trim(),
-						price_xof: Number(initialPrice),
-						capacity: Number(initialCapacity),
-					}),
-				});
+				const catRes = await apiFetch<{ category: AdminEvent['categories'][number] }>(
+					`/api/admin/events/${created.event.id}/categories`,
+					{
+						method: 'POST',
+						body: JSON.stringify({
+							name: initialCatName.trim(),
+							price_xof: Number(initialPrice),
+							capacity: Number(initialCapacity),
+						}),
+					},
+				);
+				if (catRes.category) newCategories.push(catRes.category);
 			}
 
+			let posterKey: string | null = null;
+			let posterKeys: string[] = [];
 			if (created.event?.id && initialPhotos.length > 0) {
 				const form = new FormData();
 				for (const f of initialPhotos) {
 					form.append('files', f);
 				}
-				await apiFetch(`/api/admin/events/${created.event.id}/poster`, {
-					method: 'POST',
-					body: form,
-				});
+				const posterRes = await apiFetch<{ poster_key: string | null; poster_keys: string[] }>(
+					`/api/admin/events/${created.event.id}/poster`,
+					{
+						method: 'POST',
+						body: form,
+					},
+				);
+				posterKey = posterRes.poster_key;
+				posterKeys = posterRes.poster_keys;
+			}
+
+			if (created.event) {
+				setEvents((prev) => [
+					{
+						...created.event,
+						poster_key: posterKey,
+						poster_keys: posterKeys,
+						categories: newCategories,
+						convoys: [],
+					},
+					...prev,
+				]);
 			}
 
 			setTitle('');
@@ -95,7 +120,6 @@ export default function AdminEvents() {
 			setInitialCatName('Standard');
 			setInitialPrice('');
 			setInitialCapacity('');
-			load();
 		} catch (err: any) {
 			setError(err.message);
 		}
@@ -107,23 +131,32 @@ export default function AdminEvents() {
 			method: 'PATCH',
 			body: JSON.stringify({ status: next }),
 		});
-		load();
+		setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, status: next } : e)));
 	}
 
 	async function handleAddCategory(e: Event, eventId: string) {
 		e.preventDefault();
 		setError(null);
 		try {
-			await apiFetch(`/api/admin/events/${eventId}/categories`, {
-				method: 'POST',
-				body: JSON.stringify({
-					name: catForm.name,
-					price_xof: Number(catForm.price),
-					capacity: Number(catForm.capacity),
-				}),
-			});
+			const res = await apiFetch<{ category: AdminEvent['categories'][number] }>(
+				`/api/admin/events/${eventId}/categories`,
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						name: catForm.name,
+						price_xof: Number(catForm.price),
+						capacity: Number(catForm.capacity),
+					}),
+				},
+			);
 			setCatForm({ eventId: '', name: '', price: '', capacity: '' });
-			load();
+			if (res.category) {
+				setEvents((prev) =>
+					prev.map((ev) =>
+						ev.id === eventId ? { ...ev, categories: [...ev.categories, res.category] } : ev,
+					),
+				);
+			}
 		} catch (err: any) {
 			setError(err.message);
 		}
@@ -135,11 +168,20 @@ export default function AdminEvents() {
 		const form = new FormData();
 		Array.from(files).forEach((f) => form.append('files', f));
 		try {
-			await apiFetch(`/api/admin/events/${eventId}/poster`, {
-				method: 'POST',
-				body: form,
-			});
-			load();
+			const res = await apiFetch<{ poster_key: string | null; poster_keys: string[] }>(
+				`/api/admin/events/${eventId}/poster`,
+				{
+					method: 'POST',
+					body: form,
+				},
+			);
+			setEvents((prev) =>
+				prev.map((ev) =>
+					ev.id === eventId
+						? { ...ev, poster_key: res.poster_key, poster_keys: res.poster_keys }
+						: ev,
+				),
+			);
 		} catch (err: any) {
 			setError(err.message);
 		}
@@ -148,11 +190,24 @@ export default function AdminEvents() {
 	async function handleRemovePhoto(eventId: string, key: string) {
 		setError(null);
 		try {
-			await apiFetch(`/api/admin/events/${eventId}/poster`, {
-				method: 'DELETE',
-				body: JSON.stringify({ key }),
-			});
-			load();
+			const res = await apiFetch<{ poster_keys: string[] }>(
+				`/api/admin/events/${eventId}/poster`,
+				{
+					method: 'DELETE',
+					body: JSON.stringify({ key }),
+				},
+			);
+			setEvents((prev) =>
+				prev.map((ev) =>
+					ev.id === eventId
+						? {
+								...ev,
+								poster_key: res.poster_keys[0] ?? null,
+								poster_keys: res.poster_keys,
+							}
+						: ev,
+				),
+			);
 		} catch (err: any) {
 			setError(err.message);
 		}

@@ -43,11 +43,23 @@ export default function AdminUsers() {
 	async function updateUser(id: string, patch: { role?: string; permissions?: string[]; is_active?: number }) {
 		setError(null);
 		try {
-			await apiFetch(`/api/super-admin/users/${id}`, {
+			const res = await apiFetch<{ user: UserRow }>(`/api/super-admin/users/${id}`, {
 				method: 'PATCH',
 				body: JSON.stringify(patch),
 			});
-			load();
+			if (res.user) {
+				setUsers((prev) => prev.map((u) => (u.id === id ? res.user : u)));
+			}
+			setLogs((prev) => [
+				{
+					id: crypto.randomUUID(),
+					action: 'admin.permissions_update',
+					entity_type: 'user',
+					entity_id: id,
+					created_at: new Date().toISOString(),
+				},
+				...prev,
+			]);
 		} catch (err: any) {
 			setError(err.message);
 		}

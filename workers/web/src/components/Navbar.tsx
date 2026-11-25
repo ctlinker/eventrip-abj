@@ -2,16 +2,22 @@ import { useEffect, useState } from 'preact/hooks';
 import { Ticket, Calendar, ShoppingBag, LogIn, LogOut, ShieldCheck } from 'lucide-preact';
 import { apiFetch, type ApiUser } from '../lib/api';
 
-export default function Navbar() {
-	const [user, setUser] = useState<ApiUser | null>(null);
-	const [loaded, setLoaded] = useState(false);
+interface Props {
+	initialUser?: ApiUser | null;
+	ssrResolved?: boolean;
+}
+
+export default function Navbar({ initialUser = null, ssrResolved = false }: Props) {
+	const [user, setUser] = useState<ApiUser | null>(initialUser);
+	const [loaded, setLoaded] = useState(ssrResolved);
 
 	useEffect(() => {
+		if (ssrResolved) return;
 		apiFetch<{ user?: ApiUser } | null>('/api/auth/get-session')
 			.then((res) => setUser(res?.user ?? null))
 			.catch(() => setUser(null))
 			.finally(() => setLoaded(true));
-	}, []);
+	}, [ssrResolved]);
 
 	async function handleLogout() {
 		await apiFetch('/api/auth/sign-out', { method: 'POST', body: '{}' }).catch(() => {});

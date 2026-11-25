@@ -109,11 +109,32 @@ export default function OrderDetail({ orderId }: Props) {
 		if (payerPhone.trim()) form.append('payer_phone', payerPhone.trim());
 
 		try {
-			await apiFetch(`/api/orders/${orderId}/proof`, {
+			const res = await apiFetch<{
+				ok: boolean;
+				status: string;
+				proof_image_key: string | null;
+				wave_transaction_ref: string | null;
+			}>(`/api/orders/${orderId}/proof`, {
 				method: 'POST',
 				body: form,
 			});
-			load();
+			setData((prev) =>
+				prev
+					? {
+							...prev,
+							order: { ...prev.order, status: res.status },
+							payment: prev.payment
+								? {
+										...prev.payment,
+										proof_image_key: res.proof_image_key ?? prev.payment.proof_image_key,
+										wave_transaction_ref:
+											res.wave_transaction_ref ?? prev.payment.wave_transaction_ref,
+										submitted_at: new Date().toISOString(),
+									}
+								: null,
+						}
+					: null,
+			);
 		} catch (err: any) {
 			setError(err.message);
 		} finally {

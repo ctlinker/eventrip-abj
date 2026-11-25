@@ -113,8 +113,14 @@ publicRoutes.get('/media/posters/:key{.+}', async (c) => {
 		return c.json({ error: 'Image introuvable' }, 404);
 	}
 
+	const ifNoneMatch = c.req.header('if-none-match');
+	if (ifNoneMatch && object.httpEtag && ifNoneMatch === object.httpEtag) {
+		return new Response(null, { status: 304 });
+	}
+
 	const headers = new Headers();
 	object.writeHttpMetadata(headers);
+	if (object.httpEtag) headers.set('ETag', object.httpEtag);
 	headers.set('Cache-Control', 'public, max-age=86400');
 
 	return new Response(object.body, { headers });
