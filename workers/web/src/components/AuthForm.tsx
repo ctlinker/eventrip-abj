@@ -47,16 +47,16 @@ export default function AuthForm() {
 	}
 
 	return (
-		<div class="mx-auto max-w-md rounded-2xl border border-green-100 bg-white p-6 sm:p-8 shadow-sm">
-			<div class="grid grid-cols-2 gap-2 rounded-xl bg-green-50 p-1 mb-6">
+		<div class="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+			<div class="grid grid-cols-2 gap-1.5 rounded-xl bg-slate-100 p-1 mb-6">
 				<button
 					type="button"
 					onClick={() => {
 						setMode('login');
 						setError(null);
 					}}
-					class={`rounded-lg py-2 text-sm font-semibold transition-colors cursor-pointer ${
-						mode === 'login' ? 'bg-white text-green-700 shadow-xs' : 'text-slate-600'
+					class={`rounded-lg py-2 text-sm font-bold transition-colors cursor-pointer ${
+						mode === 'login' ? 'bg-white text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
 					}`}
 				>
 					Connexion
@@ -67,8 +67,8 @@ export default function AuthForm() {
 						setMode('register');
 						setError(null);
 					}}
-					class={`rounded-lg py-2 text-sm font-semibold transition-colors cursor-pointer ${
-						mode === 'register' ? 'bg-white text-green-700 shadow-xs' : 'text-slate-600'
+					class={`rounded-lg py-2 text-sm font-bold transition-colors cursor-pointer ${
+						mode === 'register' ? 'bg-white text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
 					}`}
 				>
 					Créer un compte
@@ -79,37 +79,45 @@ export default function AuthForm() {
 				{mode === 'register' && (
 					<>
 						<div>
-							<label class="block text-sm font-medium text-slate-700 mb-1">Nom complet</label>
+							<label for="auth-name" class="block text-sm font-semibold text-slate-700 mb-1">
+								Nom complet
+							</label>
 							<input
+								id="auth-name"
+								name="name"
 								type="text"
 								required
 								value={name}
 								onInput={(e) => setName((e.target as HTMLInputElement).value)}
 								placeholder="Ex: Kouamé Aya"
-								class="w-full rounded-xl border border-green-200 px-3.5 py-2.5 text-sm focus:border-green-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
 							/>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-slate-700 mb-1">
+							<label for="auth-phone" class="block text-sm font-semibold text-slate-700 mb-1">
 								Téléphone (Wave / Contact)
 							</label>
 							<input
+								id="auth-phone"
+								name="phone"
 								type="tel"
 								required
 								value={phone}
 								onInput={(e) => setPhone((e.target as HTMLInputElement).value)}
 								placeholder="+225 07 00 00 00 00"
-								class="w-full rounded-xl border border-green-200 px-3.5 py-2.5 text-sm focus:border-green-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
 							/>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-slate-700 mb-1">
+							<label for="auth-commune" class="block text-sm font-semibold text-slate-700 mb-1">
 								Commune de départ préférée (optionnel)
 							</label>
 							<select
+								id="auth-commune"
+								name="commune"
 								value={commune}
 								onChange={(e) => setCommune((e.target as HTMLSelectElement).value)}
-								class="w-full rounded-xl border border-green-200 bg-white px-3.5 py-2.5 text-sm focus:border-green-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
 							>
 								<option value="">Sélectionner une commune...</option>
 								{ABIDJAN_COMMUNES.map((c) => (
@@ -123,27 +131,35 @@ export default function AuthForm() {
 				)}
 
 				<div>
-					<label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
+					<label for="auth-email" class="block text-sm font-semibold text-slate-700 mb-1">
+						Email
+					</label>
 					<input
+						id="auth-email"
+						name="email"
 						type="email"
 						required
 						value={email}
 						onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
 						placeholder="vous@exemple.ci"
-						class="w-full rounded-xl border border-green-200 px-3.5 py-2.5 text-sm focus:border-green-600 focus:outline-none"
+						class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
 					/>
 				</div>
 
 				<div>
-					<label class="block text-sm font-medium text-slate-700 mb-1">Mot de passe</label>
+					<label for="auth-password" class="block text-sm font-semibold text-slate-700 mb-1">
+						Mot de passe
+					</label>
 					<input
+						id="auth-password"
+						name="password"
 						type="password"
 						required
 						minLength={8}
 						value={password}
 						onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
 						placeholder="••••••••"
-						class="w-full rounded-xl border border-green-200 px-3.5 py-2.5 text-sm focus:border-green-600 focus:outline-none"
+						class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
 					/>
 				</div>
 
@@ -156,7 +172,7 @@ export default function AuthForm() {
 				<button
 					type="submit"
 					disabled={loading}
-					class="w-full rounded-xl bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer"
+					class="w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
 				>
 					{loading
 						? 'Veuillez patienter...'

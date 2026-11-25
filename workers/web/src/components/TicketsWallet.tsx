@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import QRCode from 'qrcode';
-import { Ticket, Calendar, MapPin, Bus, Lock, Download, FileText } from 'lucide-preact';
+import { Ticket, Calendar, MapPin, Bus, Lock, Download, FileText, QrCode, X } from 'lucide-preact';
 import { apiFetch, formatDate, formatXof } from '../lib/api';
 
 interface WalletTicket {
@@ -27,17 +27,62 @@ interface WalletTicket {
 	convoy_meeting_point: string | null;
 }
 
-function QrPreview({ token }: { token: string }) {
+function QrModal({ ticket, onClose }: { ticket: WalletTicket; onClose: () => void }) {
 	const [src, setSrc] = useState<string>('');
 
 	useEffect(() => {
-		QRCode.toDataURL(token, { width: 220, margin: 1, color: { dark: '#14532d', light: '#ffffff' } })
+		if (!ticket.qr_token) return;
+		QRCode.toDataURL(ticket.qr_token, {
+			width: 280,
+			margin: 2,
+			color: { dark: '#064e3b', light: '#ffffff' },
+		})
 			.then(setSrc)
 			.catch(() => {});
-	}, [token]);
+	}, [ticket.qr_token]);
 
-	if (!src) return <div class="h-44 w-44 rounded-xl bg-green-50 animate-pulse" />;
-	return <img src={src} alt="QR Code ticket" class="h-44 w-44 rounded-xl border border-green-100 p-2 bg-white" />;
+	return (
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs"
+			onClick={onClose}
+		>
+			<div
+				class="relative w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-xl"
+				onClick={(e) => e.stopPropagation()}
+			>
+				<button
+					type="button"
+					onClick={onClose}
+					aria-label="Fermer"
+					class="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer"
+				>
+					<X class="h-4 w-4" />
+				</button>
+
+				<p class="font-mono text-xs font-bold text-emerald-600">{ticket.code}</p>
+				<h3 class="mt-1 text-lg font-extrabold text-slate-950">{ticket.event_title}</h3>
+				<p class="text-xs text-slate-500">
+					{ticket.convoy_commune ? `Départ ${ticket.convoy_commune}` : ticket.event_venue}
+				</p>
+
+				<div class="my-5 flex justify-center">
+					{src ? (
+						<img
+							src={src}
+							alt={`QR Code ${ticket.code}`}
+							class="h-60 w-60 rounded-2xl border border-slate-200 p-2 bg-white"
+						/>
+					) : (
+						<div class="h-60 w-60 rounded-2xl bg-slate-100 animate-pulse" />
+					)}
+				</div>
+
+				<p class="text-xs font-semibold text-slate-600">
+					Présentez ce QR code au contrôleur (Aller &amp; Retour)
+				</p>
+			</div>
+		</div>
+	);
 }
 
 async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement | null> {
@@ -46,7 +91,7 @@ async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement |
 	const qrDataUrl = await QRCode.toDataURL(t.qr_token, {
 		width: 360,
 		margin: 2,
-		color: { dark: '#14532d', light: '#ffffff' },
+		color: { dark: '#064e3b', light: '#ffffff' },
 	});
 
 	const qrImg = new Image();
@@ -64,44 +109,42 @@ async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement |
 	const ctx = canvas.getContext('2d');
 	if (!ctx) return null;
 
-	// Fond blanc
 	ctx.fillStyle = '#ffffff';
 	ctx.fillRect(0, 0, width, height);
 
-	// Bandeau en-tête vert pur
-	ctx.fillStyle = '#16a34a';
+	ctx.fillStyle = '#059669';
 	ctx.fillRect(0, 0, width, 150);
 
 	ctx.fillStyle = '#ffffff';
 	ctx.font = 'bold 34px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
-	ctx.fillText('EVENTRIP-ABJ', 48, 68);
+	ctx.fillText('EVENTRIP.', 48, 68);
 
 	ctx.font = '500 18px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
-	ctx.fillStyle = '#dcfce7';
-	ctx.fillText('REÇU OFFICIEL & BILLET D’ACCÈS', 48, 106);
+	ctx.fillStyle = '#d1fae5';
+	ctx.fillText('REÇU OFFICIEL & BILLET ALLER-RETOUR', 48, 106);
 
-	// Message de remerciement
-	ctx.fillStyle = '#f0fdf4';
+	ctx.fillStyle = '#ecfdf5';
 	ctx.fillRect(48, 178, width - 96, 64);
-	ctx.strokeStyle = '#bbf7d0';
+	ctx.strokeStyle = '#a7f3d0';
 	ctx.lineWidth = 2;
 	ctx.strokeRect(48, 178, width - 96, 64);
 
-	ctx.fillStyle = '#166534';
+	ctx.fillStyle = '#065f46';
 	ctx.font = '600 18px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
 	ctx.textAlign = 'center';
 	ctx.fillText('EVENTRIP-ABJ vous remercie de nous faire confiance !', width / 2, 217);
 	ctx.textAlign = 'left';
 
-	// Détails de l'événement et du billet
 	const rows: Array<[string, string]> = [
 		['Événement', t.event_title || '—'],
 		[
-			t.item_type === 'convoy_ticket' ? 'Convoi' : 'Catégorie',
-			(t.item_type === 'convoy_ticket' ? t.convoy_name : t.category_name) || 'Standard',
+			'Départ',
+			t.item_type === 'convoy_ticket'
+				? t.convoy_commune || t.convoy_name || 'Convoi'
+				: t.category_name || 'Standard',
 		],
 		['Date', formatDate(t.convoy_departure_at || t.event_starts_at)],
-		['Lieu', t.convoy_meeting_point || t.event_venue || '—'],
+		['Rassemblement / Lieu', t.convoy_meeting_point || t.event_venue || '—'],
 		['Titulaire', t.holder_name || 'Client'],
 		['Référence commande', t.order_reference || t.order_id.slice(0, 8)],
 		['Code billet', t.code || '—'],
@@ -114,7 +157,7 @@ async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement |
 		ctx.font = '500 16px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
 		ctx.fillText(label, 48, y);
 
-		ctx.fillStyle = label === 'Montant payé' ? '#15803d' : '#0f172a';
+		ctx.fillStyle = label === 'Montant payé' ? '#059669' : '#0f172a';
 		ctx.font =
 			label === 'Montant payé' || label === 'Événement'
 				? 'bold 20px "Satoshi-Variable", "Satoshi-Regular", sans-serif'
@@ -123,7 +166,7 @@ async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement |
 		ctx.fillText(String(value ?? '—').slice(0, 42), width - 48, y);
 		ctx.textAlign = 'left';
 
-		ctx.strokeStyle = '#f0fdf4';
+		ctx.strokeStyle = '#f1f5f9';
 		ctx.lineWidth = 1;
 		ctx.beginPath();
 		ctx.moveTo(48, y + 16);
@@ -133,20 +176,19 @@ async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement |
 		y += 46;
 	}
 
-	// Cadre QR Code
 	const qrBoxY = 665;
-	ctx.fillStyle = '#f0fdf4';
+	ctx.fillStyle = '#f8fafc';
 	ctx.fillRect(190, qrBoxY, width - 380, 275);
-	ctx.strokeStyle = '#bbf7d0';
+	ctx.strokeStyle = '#e2e8f0';
 	ctx.lineWidth = 2;
 	ctx.strokeRect(190, qrBoxY, width - 380, 275);
 
 	ctx.drawImage(qrImg, (width - 210) / 2, qrBoxY + 18, 210, 210);
 
-	ctx.fillStyle = '#166534';
+	ctx.fillStyle = '#0f172a';
 	ctx.font = '600 15px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
 	ctx.textAlign = 'center';
-	ctx.fillText('Présentez ce QR code à l’entrée', width / 2, qrBoxY + 255);
+	ctx.fillText('Présentez ce QR code à l’aller et au retour', width / 2, qrBoxY + 255);
 
 	return canvas;
 }
@@ -174,14 +216,15 @@ async function downloadTicketPdf(t: WalletTicket) {
 }
 
 const STATUS_INFO: Record<string, { label: string; cls: string }> = {
-	pending: { label: 'En attente de validation', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
-	valid: { label: 'Valide', cls: 'bg-green-600 text-white border-green-600' },
+	pending: { label: 'En attente Wave', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+	valid: { label: 'Valide', cls: 'bg-emerald-600 text-white border-emerald-600' },
 	used: { label: 'Utilisé', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
 	cancelled: { label: 'Annulé', cls: 'bg-red-50 text-red-700 border-red-200' },
 };
 
 export default function TicketsWallet() {
 	const [tickets, setTickets] = useState<WalletTicket[]>([]);
+	const [activeQrTicket, setActiveQrTicket] = useState<WalletTicket | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -192,7 +235,7 @@ export default function TicketsWallet() {
 			.finally(() => setLoading(false));
 	}, []);
 
-	if (loading) return <div class="h-64 rounded-2xl bg-green-50/40 animate-pulse" />;
+	if (loading) return <div class="h-64 rounded-2xl bg-slate-50 border border-slate-200 animate-pulse" />;
 	if (error) {
 		return (
 			<div class="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">
@@ -203,120 +246,154 @@ export default function TicketsWallet() {
 
 	if (tickets.length === 0) {
 		return (
-			<div class="rounded-2xl border border-green-100 bg-green-50/40 p-10 text-center">
-				<Ticket class="mx-auto h-10 w-10 text-green-600 mb-3" />
-				<p class="font-semibold text-slate-900">Vous n’avez encore aucun billet</p>
+			<div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-10 text-center">
+				<Ticket class="mx-auto h-10 w-10 text-emerald-600 mb-3" />
+				<p class="font-bold text-slate-950">Vous n’avez encore aucun billet</p>
+				<a
+					href="/"
+					class="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+				>
+					Explorer les événements
+				</a>
 			</div>
 		);
 	}
 
 	return (
-		<div class="grid gap-6 md:grid-cols-2">
-			{tickets.map((t) => {
-				const badge = STATUS_INFO[t.status] || STATUS_INFO.pending;
-				return (
-					<div
-						key={t.id}
-						class="flex flex-col justify-between rounded-2xl border border-green-100 bg-white p-6 shadow-xs"
-					>
-						<div>
-							<div class="flex items-center justify-between gap-2">
-								<span class="font-mono text-xs font-semibold text-slate-500">{t.code}</span>
-								<span class={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${badge.cls}`}>
-									{badge.label}
-								</span>
-							</div>
-
-							<h3 class="mt-3 text-lg font-bold text-slate-900">{t.event_title}</h3>
-							<p class="mt-1 text-sm font-semibold text-green-700">
-								{t.item_type === 'convoy_ticket' ? (
-									<span class="inline-flex items-center gap-1.5">
-										<Bus class="h-4 w-4" /> Départ {t.convoy_commune || t.convoy_name}
+		<>
+			<div class="grid gap-6 md:grid-cols-2">
+				{tickets.map((t) => {
+					const badge = STATUS_INFO[t.status] || STATUS_INFO.pending;
+					return (
+						<div
+							key={t.id}
+							class="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
+						>
+							<div class="p-6">
+								<div class="flex items-center justify-between gap-2">
+									<span class="font-mono text-xs font-bold text-slate-500">{t.code}</span>
+									<span class={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${badge.cls}`}>
+										{badge.label}
 									</span>
-								) : (
-									<span>{t.category_name || 'Billet événement'}</span>
-								)}
-								{typeof t.price_xof === 'number' && (
-									<>
-										{' · '}
-										<span>{formatXof(t.price_xof)}</span>
-									</>
-								)}
-							</p>
+								</div>
 
-							<div class="mt-3 space-y-1 text-xs text-slate-600">
-								<p class="flex items-center gap-1.5">
-									<Calendar class="h-3.5 w-3.5 text-green-600" />
-									{formatDate(t.convoy_departure_at || t.event_starts_at)}
-								</p>
-								<p class="flex items-center gap-1.5">
-									<MapPin class="h-3.5 w-3.5 text-green-600" />
-									{t.convoy_meeting_point || t.event_venue}
-								</p>
-								{t.item_type === 'convoy_ticket' && t.status !== 'pending' && t.status !== 'cancelled' && (
-									<div class="pt-1 flex flex-wrap gap-1.5">
-										<span
-											class={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${
-												t.outbound_used_at
-													? 'bg-slate-100 text-slate-600 border-slate-200'
-													: 'bg-green-50 text-green-700 border-green-200'
-											}`}
-										>
-											Aller : {t.outbound_used_at ? 'Scanné ✓' : 'Disponible'}
+								<h3 class="mt-3 text-lg font-extrabold text-slate-950">{t.event_title}</h3>
+								<p class="mt-1 text-sm font-bold text-emerald-700">
+									{t.item_type === 'convoy_ticket' ? (
+										<span class="inline-flex items-center gap-1.5">
+											<Bus class="h-4 w-4" /> Départ {t.convoy_commune || t.convoy_name}
 										</span>
-										<span
-											class={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${
-												t.return_used_at
-													? 'bg-slate-100 text-slate-600 border-slate-200'
-													: 'bg-green-50 text-green-700 border-green-200'
-											}`}
+									) : (
+										<span>{t.category_name || 'Billet événement'}</span>
+									)}
+									{typeof t.price_xof === 'number' && (
+										<>
+											{' • '}
+											<span class="text-slate-900">{formatXof(t.price_xof)}</span>
+										</>
+									)}
+								</p>
+
+								<div class="mt-3 space-y-1 text-xs text-slate-500">
+									<p class="flex items-center gap-1.5">
+										<Calendar class="h-3.5 w-3.5 text-emerald-600" />
+										{formatDate(t.convoy_departure_at || t.event_starts_at)}
+									</p>
+									<p class="flex items-center gap-1.5">
+										<MapPin class="h-3.5 w-3.5 text-emerald-600" />
+										{t.convoy_meeting_point || t.event_venue}
+									</p>
+									{t.item_type === 'convoy_ticket' &&
+										t.status !== 'pending' &&
+										t.status !== 'cancelled' && (
+											<div class="pt-2 flex flex-wrap gap-1.5">
+												<span
+													class={`rounded-md px-2 py-0.5 text-[11px] font-bold border ${
+														t.outbound_used_at
+															? 'bg-slate-100 text-slate-500 border-slate-200'
+															: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+													}`}
+												>
+													Aller : {t.outbound_used_at ? 'Scanné ✓' : 'Dispo'}
+												</span>
+												<span
+													class={`rounded-md px-2 py-0.5 text-[11px] font-bold border ${
+														t.return_used_at
+															? 'bg-slate-100 text-slate-500 border-slate-200'
+															: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+													}`}
+												>
+													Retour : {t.return_used_at ? 'Scanné ✓' : 'Dispo'}
+												</span>
+											</div>
+										)}
+								</div>
+							</div>
+
+							{/* Ligne perforée style billet d'accès */}
+							<div class="relative border-t border-dashed border-slate-200 bg-slate-50/70 px-6 py-4">
+								<span
+									class="pointer-events-none absolute -top-2.5 -left-2.5 h-5 w-5 rounded-full border border-slate-200 bg-white"
+									aria-hidden="true"
+								/>
+								<span
+									class="pointer-events-none absolute -top-2.5 -right-2.5 h-5 w-5 rounded-full border border-slate-200 bg-white"
+									aria-hidden="true"
+								/>
+
+								{t.status === 'valid' && t.qr_token ? (
+									<div class="flex flex-wrap items-center justify-between gap-2">
+										<button
+											type="button"
+											onClick={() => setActiveQrTicket(t)}
+											class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors cursor-pointer shadow-xs"
 										>
-											Retour : {t.return_used_at ? 'Scanné ✓' : 'Disponible'}
-										</span>
+											<QrCode class="h-4 w-4" />
+											Afficher QR
+										</button>
+
+										<div class="flex items-center gap-1.5">
+											<button
+												type="button"
+												onClick={() => downloadTicketImage(t)}
+												title="Télécharger en image PNG"
+												class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+											>
+												<Download class="h-3.5 w-3.5 text-emerald-600" />
+												Image
+											</button>
+											<button
+												type="button"
+												onClick={() => downloadTicketPdf(t)}
+												title="Télécharger en PDF"
+												class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+											>
+												<FileText class="h-3.5 w-3.5 text-emerald-600" />
+												PDF
+											</button>
+										</div>
+									</div>
+								) : (
+									<div class="flex items-center gap-2 text-slate-500">
+										<Lock class="h-4 w-4 text-slate-400 shrink-0" />
+										<p class="text-xs font-medium">
+											{t.status === 'pending'
+												? 'QR activé dès confirmation du paiement Wave'
+												: t.status === 'used'
+													? `Billet entièrement utilisé (${t.used_at ? formatDate(t.used_at) : ''})`
+													: 'Billet annulé'}
+										</p>
 									</div>
 								)}
 							</div>
 						</div>
+					);
+				})}
+			</div>
 
-						<div class="mt-6 flex flex-col items-center justify-center rounded-xl bg-green-50/50 border border-green-100 p-4 gap-3">
-							{t.status === 'valid' && t.qr_token ? (
-								<>
-									<QrPreview token={t.qr_token} />
-									<div class="flex flex-wrap items-center justify-center gap-2">
-										<button
-											type="button"
-											onClick={() => downloadTicketImage(t)}
-											class="inline-flex items-center gap-1.5 rounded-xl border border-green-300 bg-white px-3.5 py-2 text-xs font-semibold text-green-700 hover:bg-green-50 transition-colors cursor-pointer"
-										>
-											<Download class="h-4 w-4" />
-											Télécharger image
-										</button>
-										<button
-											type="button"
-											onClick={() => downloadTicketPdf(t)}
-											class="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"
-										>
-											<FileText class="h-4 w-4" />
-											Télécharger PDF
-										</button>
-									</div>
-								</>
-							) : (
-								<div class="flex flex-col items-center py-6 text-center text-slate-500">
-									<Lock class="h-8 w-8 text-slate-400 mb-2" />
-									<p class="text-xs font-medium">
-										{t.status === 'pending'
-											? 'QR code activé après validation du paiement Wave'
-											: t.status === 'used'
-												? `Ticket scanné le ${t.used_at ? formatDate(t.used_at) : ''}`
-												: 'Ticket non utilisable'}
-									</p>
-								</div>
-							)}
-						</div>
-					</div>
-				);
-			})}
-		</div>
+			{activeQrTicket && (
+				<QrModal ticket={activeQrTicket} onClose={() => setActiveQrTicket(null)} />
+			)}
+		</>
 	);
 }

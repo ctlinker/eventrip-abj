@@ -14,6 +14,8 @@ interface Props {
 	slug: string;
 }
 
+const DRAFT_ORDER_KEY = 'eventrip_draft_order';
+
 export default function EventCheckout({ slug }: Props) {
 	const [event, setEvent] = useState<PublicEvent | null>(null);
 	const [loading, setLoading] = useState(true);
@@ -30,6 +32,32 @@ export default function EventCheckout({ slug }: Props) {
 			.then((data) => {
 				setEvent(data.event);
 				const sorted = sortConvoysByCommune(data.event.convoys, savedCommune);
+
+				// Restaurer le panier si l'utilisateur revient de /auth
+				try {
+					const rawDraft = sessionStorage.getItem(DRAFT_ORDER_KEY);
+					if (rawDraft) {
+						const draft = JSON.parse(rawDraft) as {
+							slug?: string;
+							convoyId?: string;
+							quantity?: number;
+						};
+						if (draft.slug === slug && draft.convoyId) {
+							const exists = sorted.find(
+								(cv) => cv.id === draft.convoyId && cv.remaining > 0,
+							);
+							if (exists) {
+								setSelectedConvoyId(exists.id);
+								if (draft.quantity && draft.quantity >= 1) {
+									setQuantity(Math.min(draft.quantity, exists.remaining));
+								}
+								sessionStorage.removeItem(DRAFT_ORDER_KEY);
+								return;
+							}
+						}
+					}
+				} catch {}
+
 				const firstAvailable = sorted.find((cv) => cv.remaining > 0) || sorted[0];
 				if (firstAvailable) setSelectedConvoyId(firstAvailable.id);
 			})
@@ -38,7 +66,7 @@ export default function EventCheckout({ slug }: Props) {
 	}, [slug]);
 
 	if (loading) {
-		return <div class="h-96 rounded-2xl border border-green-100 bg-green-50/40 animate-pulse" />;
+		return <div class="h-96 rounded-2xl border border-slate-200 bg-slate-50 animate-pulse" />;
 	}
 
 	if (error && !event) {
@@ -82,9 +110,20 @@ export default function EventCheckout({ slug }: Props) {
 					quantity: safeQty,
 				}),
 			});
+			sessionStorage.removeItem(DRAFT_ORDER_KEY);
 			window.location.href = `/orders/${res.order.id}`;
 		} catch (err: any) {
 			if (String(err.message).includes('authentifié') || String(err.message).includes('401')) {
+				try {
+					sessionStorage.setItem(
+						DRAFT_ORDER_KEY,
+						JSON.stringify({
+							slug,
+							convoyId: selectedConvoy.id,
+							quantity: safeQty,
+						}),
+					);
+				} catch {}
 				window.location.href = `/auth?next=${encodeURIComponent(window.location.pathname)}`;
 				return;
 			}
@@ -96,183 +135,222 @@ export default function EventCheckout({ slug }: Props) {
 	const posterUrls = getEventPosterUrls(event);
 
 	return (
-		<div class="grid gap-8 lg:grid-cols-3">
-			<div class="lg:col-span-2 space-y-8">
-				<div class="overflow-hidden rounded-2xl border border-green-100 bg-white">
-					{posterUrls.length > 0 && (
-						<EventImageCarousel urls={posterUrls} alt={event.title} aspectClass="aspect-[16/9]" />
-					)}
-					<div class="p-6 sm:p-8">
-						<div class="flex flex-wrap items-center justify-between gap-3">
-							<div class="flex flex-wrap items-center gap-2">
-								<span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-200">
-									<Calendar class="h-3.5 w-3.5" />
-									{formatDate(event.starts_at)}
-								</span>
-								{event.category_name && (
-									<span class="rounded-full bg-green-600 px-3 py-1 text-xs font-semibold text-white">
-										{event.category_name}
+		<div class="pb-24 lg:pb-0">
+			<div class="grid gap-8 lg:grid-cols-3">
+				<div class="lg:col-span-2 space-y-8">
+					<div class="relative pt-3.5">
+						{event.category_name && (
+							<span class="pointer-events-none absolute top-0 left-5 z-20 inline-flex items-center rounded-full border border-slate-200 bg-white px-3.5 py-1 text-[11px] font-extrabold uppercase tracking-wider text-slate-800 shadow-xs">
+								{event.category_name}
+							</span>
+						)}
+						<div class="overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs">
+							{posterUrls.length > 0 && (
+								<EventImageCarousel
+									urls={posterUrls}
+									alt={event.title}
+									aspectClass="aspect-[16/9]"
+								/>
+							)}
+							<div class="p-6 sm:p-8">
+								<div class="flex flex-wrap items-center justify-between gap-3">
+									<span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+										<Calendar class="h-3.5 w-3.5 text-emerald-600" />
+										{formatDate(event.starts_at)}
 									</span>
+									<span class="text-xl font-black tracking-tight text-slate-950">
+										{formatXof(ticketPrice)}{' '}
+										<span class="text-xs font-medium text-slate-500">
+											/ billet (convoi A/R inclus)
+										</span>
+									</span>
+								</div>
+								<h1 class="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-slate-950">
+									{event.title}
+								</h1>
+								<p class="mt-2 flex items-center gap-2 text-sm font-medium text-slate-600">
+									<MapPin class="h-4 w-4 text-emerald-600 shrink-0" />
+									{event.venue}
+								</p>
+								<p class="mt-5 whitespace-pre-line text-slate-700 leading-relaxed">
+									{event.description}
+								</p>
+								{event.extra_info && (
+									<div class="mt-5 rounded-xl bg-slate-50 border border-slate-200 p-4 text-sm text-slate-700">
+										{event.extra_info}
+									</div>
 								)}
 							</div>
-							<span class="text-lg font-bold text-green-700">
-								{formatXof(ticketPrice)} <span class="text-xs font-normal text-slate-500">/ billet (Aller-Retour inclus)</span>
-							</span>
 						</div>
-						<h1 class="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">
-							{event.title}
-						</h1>
-						<p class="mt-2 flex items-center gap-2 text-sm font-medium text-slate-600">
-							<MapPin class="h-4 w-4 text-green-600" />
-							{event.venue}
+					</div>
+
+					<section class="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs">
+						<h2 class="flex items-center gap-2 text-lg font-extrabold text-slate-950">
+							<Bus class="h-5 w-5 text-emerald-600" />
+							Choisissez votre commune de départ
+						</h2>
+						<p class="mt-1 text-xs text-slate-500">
+							Tous les départs incluent le trajet aller-retour au tarif unique de{' '}
+							<strong class="text-slate-800">{formatXof(ticketPrice)}</strong>.
 						</p>
-						<p class="mt-5 whitespace-pre-line text-slate-700 leading-relaxed">
-							{event.description}
-						</p>
-						{event.extra_info && (
-							<div class="mt-5 rounded-xl bg-green-50/70 border border-green-100 p-4 text-sm text-slate-700">
-								{event.extra_info}
+
+						{sortedConvoys.length === 0 ? (
+							<p class="mt-4 text-sm text-slate-500">
+								Aucun départ configuré pour cet événement pour le moment.
+							</p>
+						) : (
+							<div class="mt-4 space-y-3">
+								{sortedConvoys.map((cv) => {
+									const isMatch =
+										Boolean(preferredCommune) &&
+										(cv.commune || '').toLowerCase() === preferredCommune.toLowerCase();
+									const isSelected = selectedConvoyId === cv.id;
+									const soldOut = cv.remaining <= 0;
+
+									return (
+										<button
+											key={cv.id}
+											type="button"
+											disabled={soldOut}
+											onClick={() => {
+												setSelectedConvoyId(cv.id);
+												setQuantity((q) => Math.min(q, cv.remaining));
+											}}
+											class={`w-full text-left rounded-2xl border p-4 transition-all cursor-pointer disabled:opacity-50 ${
+												isSelected
+													? 'border-emerald-600 bg-emerald-50/40 ring-2 ring-emerald-500/15'
+													: 'border-slate-200 bg-white hover:border-slate-300'
+											}`}
+										>
+											<div class="flex items-start justify-between gap-3">
+												<div>
+													<div class="flex flex-wrap items-center gap-2">
+														<span class="font-bold text-slate-950">
+															Départ {cv.commune || cv.name}
+														</span>
+														{isMatch && (
+															<span class="rounded-full bg-emerald-600 px-2.5 py-0.5 text-[11px] font-bold text-white">
+																Votre commune
+															</span>
+														)}
+													</div>
+													<p class="mt-1 text-sm text-slate-600">
+														Rassemblement : <strong class="text-slate-800">{cv.meeting_point}</strong>{' '}
+														• {formatDate(cv.departure_at)}
+													</p>
+													<p class="mt-1.5 text-xs font-semibold text-emerald-700">
+														{soldOut
+															? 'Complet'
+															: `${cv.remaining}/${cv.capacity} dispo`}
+													</p>
+												</div>
+												{isSelected && (
+													<CheckCircle2 class="h-5 w-5 text-emerald-600 shrink-0" />
+												)}
+											</div>
+										</button>
+									);
+								})}
 							</div>
 						)}
-					</div>
+					</section>
 				</div>
 
-				<section class="rounded-2xl border border-green-100 bg-white p-6">
-					<h2 class="flex items-center gap-2 text-lg font-bold text-slate-900">
-						<Bus class="h-5 w-5 text-green-600" />
-						Choisissez votre commune de départ
-					</h2>
-					<p class="mt-1 text-xs text-slate-500">
-						Tous les départs incluent l’aller-retour (QR code scannable 2 fois) au tarif unique de{' '}
-						<strong>{formatXof(ticketPrice)}</strong>.
-					</p>
+				{/* Sidebar Desktop */}
+				<aside class="lg:col-span-1">
+					<div class="sticky top-24 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
+						<h3 class="text-lg font-extrabold text-slate-950">Récapitulatif</h3>
 
-					{sortedConvoys.length === 0 ? (
-						<p class="mt-4 text-sm text-slate-500">
-							Aucun départ configuré pour cet événement pour le moment.
-						</p>
-					) : (
-						<div class="mt-4 space-y-3">
-							{sortedConvoys.map((cv) => {
-								const isMatch =
-									Boolean(preferredCommune) &&
-									(cv.commune || '').toLowerCase() === preferredCommune.toLowerCase();
-								const isSelected = selectedConvoyId === cv.id;
-								const soldOut = cv.remaining <= 0;
+						{selectedConvoy && (
+							<div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3.5 text-sm">
+								<p class="font-bold text-slate-900">
+									Départ {selectedConvoy.commune || selectedConvoy.name}
+								</p>
+								<p class="text-xs text-slate-500 mt-0.5">{selectedConvoy.meeting_point}</p>
+							</div>
+						)}
 
-								return (
-									<button
-										key={cv.id}
-										type="button"
-										disabled={soldOut}
-										onClick={() => {
-											setSelectedConvoyId(cv.id);
-											setQuantity(1);
-										}}
-										class={`w-full text-left rounded-2xl border p-4 transition-all cursor-pointer disabled:opacity-50 ${
-											isSelected
-												? 'border-green-600 bg-green-50/60 ring-2 ring-green-500/20'
-												: 'border-green-100 bg-white hover:border-green-300'
-										}`}
-									>
-										<div class="flex items-start justify-between gap-3">
-											<div>
-												<div class="flex flex-wrap items-center gap-2">
-													<span class="font-bold text-slate-900">
-														Départ {cv.commune || cv.name}
-													</span>
-													{isMatch && (
-														<span class="rounded-full bg-green-600 px-2 py-0.5 text-[11px] font-semibold text-white">
-															Votre commune
-														</span>
-													)}
-												</div>
-												<p class="mt-1 text-sm text-slate-600">
-													Rassemblement : <strong>{cv.meeting_point}</strong> ·{' '}
-													{formatDate(cv.departure_at)}
-												</p>
-												<p class="mt-1 text-xs font-semibold text-green-700">
-													{soldOut ? 'Complet' : `${cv.remaining} / ${cv.capacity} places disponibles`}
-												</p>
-											</div>
-											{isSelected && <CheckCircle2 class="h-5 w-5 text-green-600 shrink-0" />}
-										</div>
-									</button>
-								);
-							})}
+						<div class="flex items-center justify-between">
+							<span class="text-sm font-semibold text-slate-700">Nombre de billets</span>
+							<div class="flex items-center gap-2">
+								<button
+									type="button"
+									aria-label="Retirer un billet"
+									disabled={safeQty <= 1}
+									onClick={() => setQuantity(Math.max(1, safeQty - 1))}
+									class="h-9 w-9 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+								>
+									<Minus class="h-4 w-4" />
+								</button>
+								<span class="w-8 text-center font-bold text-slate-950">{safeQty}</span>
+								<button
+									type="button"
+									aria-label="Ajouter un billet"
+									disabled={safeQty >= maxQty}
+									onClick={() => setQuantity(Math.min(maxQty, safeQty + 1))}
+									class="h-9 w-9 rounded-xl border border-slate-200 bg-white flex items-center justify-center text-slate-700 hover:bg-slate-50 disabled:opacity-40 cursor-pointer"
+								>
+									<Plus class="h-4 w-4" />
+								</button>
+							</div>
 						</div>
-					)}
-				</section>
+
+						<div class="space-y-2 text-sm text-slate-600 pt-3 border-t border-slate-100">
+							<div class="flex justify-between">
+								<span>Prix unitaire</span>
+								<span class="font-semibold text-slate-900">{formatXof(ticketPrice)}</span>
+							</div>
+							<div class="flex justify-between text-base font-black text-slate-950 pt-2 border-t border-slate-200">
+								<span>Total à régler</span>
+								<span class="text-emerald-600">{formatXof(totalAmount)}</span>
+							</div>
+						</div>
+
+						<p class="text-xs text-slate-500">
+							Places réservées pendant <strong>2 heures</strong> pour effectuer votre paiement Wave.
+						</p>
+
+						{error && (
+							<div class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+								{error}
+							</div>
+						)}
+
+						<button
+							type="button"
+							disabled={!selectedConvoy || safeQty < 1 || submitting}
+							onClick={handleCheckout}
+							class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50 transition-colors cursor-pointer"
+						>
+							<ShoppingBag class="h-4 w-4" />
+							{submitting ? 'Création en cours...' : 'Commander maintenant'}
+						</button>
+					</div>
+				</aside>
 			</div>
 
-			<aside class="lg:col-span-1">
-				<div class="sticky top-24 rounded-2xl border border-green-200 bg-green-50/50 p-6 space-y-5">
-					<h3 class="text-lg font-bold text-slate-900">Votre commande</h3>
-
-					{selectedConvoy && (
-						<div class="rounded-xl border border-green-200 bg-white p-3.5 text-sm">
-							<p class="font-semibold text-slate-900">
-								Départ : {selectedConvoy.commune || selectedConvoy.name}
+			{/* Barre d'action fixe en bas d'écran sur mobile (< lg) */}
+			{selectedConvoy && (
+				<div class="fixed bottom-0 inset-x-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+					<div class="mx-auto flex max-w-2xl items-center justify-between gap-3">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-semibold text-slate-500">
+								Départ {selectedConvoy.commune || selectedConvoy.name} • {safeQty} billet(s)
 							</p>
-							<p class="text-xs text-slate-500 mt-0.5">{selectedConvoy.meeting_point}</p>
+							<p class="text-base font-black text-slate-950">{formatXof(totalAmount)}</p>
 						</div>
-					)}
-
-					<div class="flex items-center justify-between">
-						<span class="text-sm font-medium text-slate-700">Nombre de billets</span>
-						<div class="flex items-center gap-2">
-							<button
-								type="button"
-								disabled={safeQty <= 1}
-								onClick={() => setQuantity(Math.max(1, safeQty - 1))}
-								class="h-9 w-9 rounded-xl border border-green-200 bg-white flex items-center justify-center text-slate-700 hover:bg-green-50 disabled:opacity-40 cursor-pointer"
-							>
-								<Minus class="h-4 w-4" />
-							</button>
-							<span class="w-8 text-center font-semibold">{safeQty}</span>
-							<button
-								type="button"
-								disabled={safeQty >= maxQty}
-								onClick={() => setQuantity(Math.min(maxQty, safeQty + 1))}
-								class="h-9 w-9 rounded-xl border border-green-200 bg-white flex items-center justify-center text-slate-700 hover:bg-green-50 disabled:opacity-40 cursor-pointer"
-							>
-								<Plus class="h-4 w-4" />
-							</button>
-						</div>
+						<button
+							type="button"
+							disabled={safeQty < 1 || submitting}
+							onClick={handleCheckout}
+							class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white shadow-xs hover:bg-emerald-700 disabled:opacity-50 cursor-pointer shrink-0"
+						>
+							<ShoppingBag class="h-4 w-4" />
+							{submitting ? 'En cours...' : 'Commander'}
+						</button>
 					</div>
-
-					<div class="space-y-2 text-sm text-slate-600 pt-2 border-t border-green-200">
-						<div class="flex justify-between">
-							<span>Prix unitaire</span>
-							<span class="font-semibold text-slate-900">{formatXof(ticketPrice)}</span>
-						</div>
-						<div class="flex justify-between text-base font-bold text-slate-900 pt-2 border-t border-green-200">
-							<span>Total à régler</span>
-							<span class="text-green-700">{formatXof(totalAmount)}</span>
-						</div>
-					</div>
-
-					<p class="text-xs text-slate-500">
-						Vos places sont réservées pendant <strong>2 heures</strong> dès la commande pour effectuer votre paiement Wave.
-					</p>
-
-					{error && (
-						<div class="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
-							{error}
-						</div>
-					)}
-
-					<button
-						type="button"
-						disabled={!selectedConvoy || safeQty < 1 || submitting}
-						onClick={handleCheckout}
-						class="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer"
-					>
-						<ShoppingBag class="h-4 w-4" />
-						{submitting ? 'Création en cours...' : 'Commander maintenant'}
-					</button>
 				</div>
-			</aside>
+			)}
 		</div>
 	);
 }
