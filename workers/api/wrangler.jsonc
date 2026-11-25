@@ -15,7 +15,7 @@
 		{
 			"binding": "DB",
 			"database_name": "eventrip-db",
-			"database_id": "5ef23cff-3012-40b9-9fcd-2da0134a75c9",
+			"database_id": "7a684326-e718-49ef-abd4-671def938220",
 			"migrations_dir": "../../packages/db/migrations",
 		}
 	],
