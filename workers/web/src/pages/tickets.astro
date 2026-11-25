@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+import TicketsWallet from '../components/TicketsWallet';
+---
+
+<Layout title="Mes billets — EVENTRIP-ABJ">
+	<section class="mx-auto max-w-5xl px-4 py-10 sm:px-6">
+		<h1 class="text-2xl font-bold text-slate-900 mb-2">Mes billets &amp; QR codes</h1>
+		<p class="text-sm text-slate-600 mb-6">
+			Présentez votre QR code à l’entrée de l’événement ou au point de rassemblement du convoi.
+		</p>
+		<TicketsWallet client:load />
+	</section>
+</Layout>

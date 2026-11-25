@@ -1,11 +1,27 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import EventsCatalog from '../components/EventsCatalog';
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="EVENTRIP-ABJ — Événements & Convois en Côte d'Ivoire">
+	<section class="border-b border-green-100 bg-gradient-to-b from-green-50/70 to-white">
+		<div class="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+			<span class="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+				Billetterie &amp; Convois · Côte d'Ivoire
+			</span>
+			<h1 class="mt-4 max-w-2xl text-3xl sm:text-5xl font-bold tracking-tight text-slate-900">
+				Vos tickets et trajets <span class="text-green-600">en toute simplicité</span>.
+			</h1>
+			<p class="mt-4 max-w-xl text-base text-slate-600">
+				Réservez vos places d'événements et vos convois de transport, réglez par Wave et recevez vos QR codes vérifiés.
+			</p>
+		</div>
+	</section>
+
+	<section class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+		<div class="mb-6 flex items-center justify-between">
+			<h2 class="text-xl font-bold text-slate-900">Événements à l'affiche</h2>
+		</div>
+		<EventsCatalog client:load />
+	</section>
 </Layout>

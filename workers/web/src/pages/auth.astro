@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import AuthForm from '../components/AuthForm';
+---
+
+<Layout title="Connexion — EVENTRIP-ABJ">
+	<section class="mx-auto max-w-6xl px-4 py-12 sm:px-6">
+		<div class="mb-8 text-center">
+			<h1 class="text-2xl sm:text-3xl font-bold text-slate-900">Accédez à votre espace</h1>
+			<p class="mt-2 text-sm text-slate-600">
+				Connectez-vous pour commander vos tickets, envoyer vos justificatifs Wave et retrouver vos QR codes.
+			</p>
+		</div>
+		<AuthForm client:load />
+	</section>
+</Layout>

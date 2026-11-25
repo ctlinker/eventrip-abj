@@ -1,0 +1,15 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import EventCheckout from '../../components/EventCheckout';
+
+const { slug } = Astro.params;
+---
+
+<Layout title="Détail événement — EVENTRIP-ABJ">
+	<section class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+		<a href="/" class="inline-block text-sm font-medium text-green-700 hover:underline mb-6">
+			← Retour aux événements
+		</a>
+		<EventCheckout slug={slug || ''} client:load />
+	</section>
+</Layout>
