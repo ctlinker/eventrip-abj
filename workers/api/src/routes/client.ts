@@ -541,6 +541,9 @@ clientRoutes.get('/tickets', async (c) => {
 	const tickets = await db
 		.selectFrom('tickets as t')
 		.innerJoin('events as e', 'e.id', 't.event_id')
+		.innerJoin('orders as o', 'o.id', 't.order_id')
+		.innerJoin('order_items as oi', 'oi.id', 't.order_item_id')
+		.innerJoin('user as u', 'u.id', 't.user_id')
 		.leftJoin('ticket_categories as tc', 'tc.id', 't.ticket_category_id')
 		.leftJoin('convoys as cv', 'cv.id', 't.convoy_id')
 		.select([
@@ -552,6 +555,9 @@ clientRoutes.get('/tickets', async (c) => {
 			't.status',
 			't.used_at',
 			't.created_at',
+			'o.reference as order_reference',
+			'oi.unit_price_xof as price_xof',
+			'u.name as holder_name',
 			'e.title as event_title',
 			'e.starts_at as event_starts_at',
 			'e.venue as event_venue',

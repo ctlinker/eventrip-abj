@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'preact/hooks';
 import QRCode from 'qrcode';
-import { Ticket, Calendar, MapPin, Bus, Lock } from 'lucide-preact';
-import { apiFetch, formatDate } from '../lib/api';
+import { Ticket, Calendar, MapPin, Bus, Lock, Download } from 'lucide-preact';
+import { apiFetch, formatDate, formatXof } from '../lib/api';
 
 interface WalletTicket {
 	id: string;
 	code: string;
 	qr_token: string | null;
 	order_id: string;
+	order_reference: string;
+	price_xof: number;
+	holder_name: string;
 	item_type: 'event_ticket' | 'convoy_ticket';
 	status: 'pending' | 'valid' | 'used' | 'cancelled';
 	used_at: string | null;
@@ -31,6 +34,120 @@ function QrPreview({ token }: { token: string }) {
 
 	if (!src) return <div class="h-44 w-44 rounded-xl bg-green-50 animate-pulse" />;
 	return <img src={src} alt="QR Code ticket" class="h-44 w-44 rounded-xl border border-green-100 p-2 bg-white" />;
+}
+
+async function downloadTicketReceipt(t: WalletTicket) {
+	if (!t.qr_token) return;
+
+	const qrDataUrl = await QRCode.toDataURL(t.qr_token, {
+		width: 360,
+		margin: 2,
+		color: { dark: '#14532d', light: '#ffffff' },
+	});
+
+	const qrImg = new Image();
+	await new Promise<void>((resolve, reject) => {
+		qrImg.onload = () => resolve();
+		qrImg.onerror = () => reject(new Error('Erreur génération QR'));
+		qrImg.src = qrDataUrl;
+	});
+
+	const width = 720;
+	const height = 1000;
+	const canvas = document.createElement('canvas');
+	canvas.width = width;
+	canvas.height = height;
+	const ctx = canvas.getContext('2d');
+	if (!ctx) return;
+
+	// Fond blanc
+	ctx.fillStyle = '#ffffff';
+	ctx.fillRect(0, 0, width, height);
+
+	// Bandeau en-tête vert pur
+	ctx.fillStyle = '#16a34a';
+	ctx.fillRect(0, 0, width, 150);
+
+	ctx.fillStyle = '#ffffff';
+	ctx.font = 'bold 34px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
+	ctx.fillText('EVENTRIP-ABJ', 48, 68);
+
+	ctx.font = '500 18px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
+	ctx.fillStyle = '#dcfce7';
+	ctx.fillText('REÇU OFFICIEL & BILLET D’ACCÈS', 48, 106);
+
+	// Message de remerciement
+	ctx.fillStyle = '#f0fdf4';
+	ctx.fillRect(48, 178, width - 96, 64);
+	ctx.strokeStyle = '#bbf7d0';
+	ctx.lineWidth = 2;
+	ctx.strokeRect(48, 178, width - 96, 64);
+
+	ctx.fillStyle = '#166534';
+	ctx.font = '600 18px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
+	ctx.textAlign = 'center';
+	ctx.fillText('EVENTRIP-ABJ vous remercie de nous faire confiance !', width / 2, 217);
+	ctx.textAlign = 'left';
+
+	// Détails de l'événement et du billet
+	const rows: Array<[string, string]> = [
+		['Événement', t.event_title],
+		[
+			t.item_type === 'convoy_ticket' ? 'Convoi' : 'Catégorie',
+			(t.item_type === 'convoy_ticket' ? t.convoy_name : t.category_name) || 'Standard',
+		],
+		['Date', formatDate(t.convoy_departure_at || t.event_starts_at)],
+		['Lieu', t.convoy_meeting_point || t.event_venue],
+		['Titulaire', t.holder_name],
+		['Référence commande', t.order_reference],
+		['Code billet', t.code],
+		['Montant payé', formatXof(t.price_xof)],
+	];
+
+	let y = 290;
+	for (const [label, value] of rows) {
+		ctx.fillStyle = '#64748b';
+		ctx.font = '500 16px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
+		ctx.fillText(label, 48, y);
+
+		ctx.fillStyle = label === 'Montant payé' ? '#15803d' : '#0f172a';
+		ctx.font =
+			label === 'Montant payé' || label === 'Événement'
+				? 'bold 20px "Satoshi-Variable", "Satoshi-Regular", sans-serif'
+				: '600 18px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
+		ctx.textAlign = 'right';
+		ctx.fillText(value.slice(0, 42), width - 48, y);
+		ctx.textAlign = 'left';
+
+		ctx.strokeStyle = '#f0fdf4';
+		ctx.lineWidth = 1;
+		ctx.beginPath();
+		ctx.moveTo(48, y + 16);
+		ctx.lineTo(width - 48, y + 16);
+		ctx.stroke();
+
+		y += 46;
+	}
+
+	// Cadre QR Code
+	const qrBoxY = 665;
+	ctx.fillStyle = '#f0fdf4';
+	ctx.fillRect(190, qrBoxY, width - 380, 275);
+	ctx.strokeStyle = '#bbf7d0';
+	ctx.lineWidth = 2;
+	ctx.strokeRect(190, qrBoxY, width - 380, 275);
+
+	ctx.drawImage(qrImg, (width - 210) / 2, qrBoxY + 18, 210, 210);
+
+	ctx.fillStyle = '#166534';
+	ctx.font = '600 15px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
+	ctx.textAlign = 'center';
+	ctx.fillText('Présentez ce QR code à l’entrée', width / 2, qrBoxY + 255);
+
+	const link = document.createElement('a');
+	link.download = `recu-${t.code}.png`;
+	link.href = canvas.toDataURL('image/png');
+	link.click();
 }
 
 const STATUS_INFO: Record<string, { label: string; cls: string }> = {
@@ -96,6 +213,8 @@ export default function TicketsWallet() {
 								) : (
 									<span>Catégorie : {t.category_name}</span>
 								)}
+								{' · '}
+								<span>{formatXof(t.price_xof)}</span>
 							</p>
 
 							<div class="mt-3 space-y-1 text-xs text-slate-600">
@@ -110,9 +229,19 @@ export default function TicketsWallet() {
 							</div>
 						</div>
 
-						<div class="mt-6 flex flex-col items-center justify-center rounded-xl bg-green-50/50 border border-green-100 p-4">
+						<div class="mt-6 flex flex-col items-center justify-center rounded-xl bg-green-50/50 border border-green-100 p-4 gap-3">
 							{t.status === 'valid' && t.qr_token ? (
-								<QrPreview token={t.qr_token} />
+								<>
+									<QrPreview token={t.qr_token} />
+									<button
+										type="button"
+										onClick={() => downloadTicketReceipt(t)}
+										class="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"
+									>
+										<Download class="h-4 w-4" />
+										Télécharger le reçu
+									</button>
+								</>
 							) : (
 								<div class="flex flex-col items-center py-6 text-center text-slate-500">
 									<Lock class="h-8 w-8 text-slate-400 mb-2" />
