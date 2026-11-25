@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { getAuth } from 'db';
+import { maybeBootstrapSuperAdmin } from './lib/bootstrap';
 import { requireAuth } from './middleware/auth';
 import { publicRoutes } from './routes/public';
 import { clientRoutes } from './routes/client';
@@ -25,9 +26,17 @@ app.get('/api/health', (c) => {
 	return c.json({ ok: true, service: 'eventrip-api' });
 });
 
-app.all('/api/auth/*', (c) => {
+app.all('/api/auth/*', async (c) => {
 	const auth = getAuth(c.env.DB);
-	return auth.handler(c.req.raw);
+	const res = await auth.handler(c.req.raw);
+	if (
+		res.ok &&
+		c.env.BOOTSTRAP_SUPER_ADMIN_EMAIL &&
+		(c.req.path.includes('/sign-in') || c.req.path.includes('/sign-up'))
+	) {
+		await maybeBootstrapSuperAdmin(c.env.DB, c.env.BOOTSTRAP_SUPER_ADMIN_EMAIL);
+	}
+	return res;
 });
 
 app.get('/api/me', requireAuth, (c) => {

@@ -3,6 +3,7 @@ import { beforeAll, describe, it, expect } from 'vitest';
 import migration001 from '../../../packages/db/migrations/001_better-auth.sql?raw';
 import migration002 from '../../../packages/db/migrations/002_domain.sql?raw';
 import { expirePendingOrders } from '../src/services/orders';
+import { maybeBootstrapSuperAdmin } from '../src/lib/bootstrap';
 
 async function applySql(sql: string) {
 	const cleaned = sql
@@ -301,6 +302,12 @@ describe('Eventrip API Core', () => {
 		};
 		expect(refProofData.status).toBe('under_review');
 		expect(refProofData.wave_transaction_ref).toBe('WAVE-TX-ONLY-999');
+
+		// 10. Bootstrap super_admin uniquement s'il n'en existe aucun en base
+		const promotedFirst = await maybeBootstrapSuperAdmin(env.DB, 'client@eventrip.ci');
+		expect(promotedFirst).toBe(true);
+		const promotedSecond = await maybeBootstrapSuperAdmin(env.DB, 'admin1@eventrip.ci');
+		expect(promotedSecond).toBe(false);
 
 		expect(clientUserId).toBeTruthy();
 	});

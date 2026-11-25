@@ -30,7 +30,8 @@
 		"crons": ["*/5 * * * *"]
 	},
 	"vars": {
-		"WAVE_MERCHANT_ID": "M_ci_d5gtAH7j1J1L"
+		"WAVE_MERCHANT_ID": "M_ci_d5gtAH7j1J1L",
+		"BOOTSTRAP_SUPER_ADMIN_EMAIL": ""
 	},
 	/**
 	 * Smart Placement

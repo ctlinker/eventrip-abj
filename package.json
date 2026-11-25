@@ -7,7 +7,9 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "bun check"
+    "typecheck": "bun check",
+    "format": "bun prettier --write .",
+    "lint": "bun biome check --fix ."
   },
   "devDependencies": {
     "@types/bun": "latest"
