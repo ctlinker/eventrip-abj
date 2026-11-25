@@ -33,7 +33,7 @@ export default function EventImageCarousel({ urls, alt, aspectClass = 'aspect-[1
 	}
 
 	return (
-		<div class={`relative ${aspectClass} w-full bg-slate-100 overflow-hidden group/carousel`}>
+		<div class={`relative ${aspectClass} w-full min-w-0 bg-slate-100 overflow-hidden group/carousel`}>
 			<div
 				class="flex h-full w-full transition-transform duration-300 ease-out"
 				style={{ transform: `translateX(-${safeIndex * 100}%)` }}

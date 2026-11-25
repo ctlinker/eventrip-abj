@@ -112,8 +112,8 @@ export default function EventsCatalog() {
 				/>
 
 				<div class="relative mx-auto max-w-6xl px-4 pt-10 pb-12 sm:px-6 lg:pt-14 lg:pb-16">
-					<div class="grid items-center gap-8 lg:grid-cols-12">
-						<div class="lg:col-span-7 space-y-5">
+					<div class="grid grid-cols-1 items-center gap-8 lg:grid-cols-12">
+						<div class="min-w-0 lg:col-span-7 space-y-5">
 							<h1 class="text-3xl sm:text-5xl font-black tracking-tight text-slate-950 leading-[1.08]">
 								Votre billet pour la{' '}
 								<span class="text-emerald-600">prochaine grande sortie</span>.
@@ -127,7 +127,7 @@ export default function EventsCatalog() {
 								onSubmit={scrollToGrid}
 								class="mt-6 flex flex-col gap-2 rounded-2xl border border-slate-200/90 bg-white p-2 shadow-lg shadow-slate-200/50 sm:flex-row sm:items-center"
 							>
-								<div class="flex flex-1 items-center gap-2 px-3 py-2">
+								<div class="flex flex-1 min-w-0 items-center gap-2 px-3 py-2">
 									<Search class="h-4 w-4 text-slate-400 shrink-0" />
 									<input
 										type="text"
@@ -245,7 +245,7 @@ export default function EventsCatalog() {
 				</div>
 
 				{loading ? (
-					<div class="grid gap-7 sm:grid-cols-2 lg:grid-cols-3">
+					<div class="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
 						{[1, 2, 3].map((n) => (
 							<div
 								key={n}
@@ -278,7 +278,7 @@ export default function EventsCatalog() {
 						)}
 					</div>
 				) : (
-					<div class="grid gap-x-6 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
+					<div class="grid grid-cols-1 gap-x-6 gap-y-9 sm:grid-cols-2 lg:grid-cols-3">
 						{filteredEvents.map((event) => {
 							const prioritizedConvoys = sortConvoysByCommune(event.convoys, commune);
 							const displayPrice =
@@ -316,7 +316,7 @@ export default function EventsCatalog() {
 							const isSaved = wishlistIds.has(event.id);
 
 							return (
-								<div key={event.id} class="relative pt-3.5 flex flex-col">
+								<div key={event.id} class="relative pt-3.5 flex flex-col min-w-0 max-w-full">
 									{/* Badge catégorie flottant hors-cadre en haut à gauche (2.jpg & guide.md §3) */}
 									{event.category_name && (
 										<span class="pointer-events-none absolute top-0 left-4 z-20 inline-flex items-center rounded-full border border-slate-200 bg-white px-3.5 py-1 text-[11px] font-extrabold uppercase tracking-wider text-slate-800 shadow-xs">
@@ -341,7 +341,7 @@ export default function EventsCatalog() {
 
 									<a
 										href={`/events/${event.slug}`}
-										class="group flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:border-slate-300 hover:shadow-md transition-all"
+										class="group flex flex-1 flex-col min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:border-slate-300 hover:shadow-md transition-all"
 									>
 										<EventImageCarousel
 											urls={posterUrls}
@@ -351,7 +351,7 @@ export default function EventsCatalog() {
 
 										{/* Bandeau horizontal des départs sous l'image (2.jpg + marquee déterministe) */}
 										{prioritizedConvoys.length > 0 && (
-											<div class="overflow-hidden border-y border-slate-100 bg-slate-50/90 py-2 px-3">
+											<div class="w-full min-w-0 overflow-hidden border-y border-slate-100 bg-slate-50/90 py-2 px-3">
 												{prioritizedConvoys.length === 1 ? (
 													<div class="flex items-center gap-2">
 														{renderChips('single')}

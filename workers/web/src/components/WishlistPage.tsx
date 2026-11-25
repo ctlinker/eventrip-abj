@@ -50,7 +50,7 @@ export default function WishlistPage() {
 
 	if (loading) {
 		return (
-			<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+			<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
 				{[1, 2, 3].map((n) => (
 					<div
 						key={n}
@@ -107,7 +107,7 @@ export default function WishlistPage() {
 					</a>
 				</div>
 			) : (
-				<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+				<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
 					{events.map((event) => {
 						const posterUrls = getEventPosterUrls(event);
 						const prioritizedConvoys = sortConvoysByCommune(event.convoys, commune);
@@ -115,7 +115,7 @@ export default function WishlistPage() {
 							event.price_xof > 0 ? event.price_xof : event.categories?.[0]?.price_xof ?? null;
 
 						return (
-							<div key={event.id} class="relative pt-3.5 flex flex-col">
+							<div key={event.id} class="relative pt-3.5 flex flex-col min-w-0 max-w-full">
 								{event.category_name && (
 									<span class="pointer-events-none absolute top-0 left-4 z-20 inline-flex items-center rounded-full border border-slate-200 bg-white px-3.5 py-1 text-[11px] font-extrabold uppercase tracking-wider text-slate-800 shadow-xs">
 										{event.category_name}
@@ -135,7 +135,7 @@ export default function WishlistPage() {
 
 								<a
 									href={`/events/${event.slug}`}
-									class="group flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:border-slate-300 hover:shadow-md transition-all"
+									class="group flex flex-1 flex-col min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:border-slate-300 hover:shadow-md transition-all"
 								>
 									<EventImageCarousel
 										urls={posterUrls}
