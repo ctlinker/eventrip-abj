@@ -1,0 +1,22 @@
+{
+	"name": "api",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev",
+		"start": "wrangler dev",
+		"test": "vitest",
+		"cf-typegen": "wrangler types",
+		"db:migrate:local": "wrangler d1 migrations apply eventrip-db --local",
+		"db:migrate:prod": "wrangler d1 migrations apply eventrip-db --remote",
+		"db:tables:local": "wrangler d1 execute eventrip-db --local --command \"SELECT name FROM sqlite_master WHERE type='table';\""
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-plugin": "^1.4.3",
+		"@types/node": "^26.6.7",
+		"typescript": "^5.5.2",
+		"vitest": "~5.0.3",
+		"wrangler": "^4.168.0"
+	}
+}
