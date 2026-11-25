@@ -65,3 +65,20 @@ Le super administrateur dispose automatiquement de **tous les droits administrat
 ## 5. Automates système (Cron Cloudflare Workers)
 
 * **Expiration des commandes non payées (`*/5 * * * *`)** : `expirePendingOrders` (dans `workers/api/src/services/orders.ts`) recherche toutes les commandes en `pending_payment` dont `expires_at <= now`, les passe en `expired`, annule leurs tickets `pending`, restitue les places réservées sur `ticket_categories` et `convoys`, et écrit une entrée `order.expire` dans `audit_logs`. Les commandes passées en `under_review` (justificatif envoyé) sont gelées et ne sont jamais expirées automatiquement.
+
+---
+
+## 6. Fonctionnalités implémentées (par module)
+
+| Module | État | Détails de ce qui est en place |
+|---|---|---|
+| **Authentification & Rôles** | Implémenté | Better Auth (`emailAndPassword`) sur D1, champs `phone`, `role`, `permissions`, `is_active`, bootstrap automatique du 1er `super_admin` via `BOOTSTRAP_SUPER_ADMIN_EMAIL`. |
+| **Événements & Médias** | Implémenté | CRUD événements, catégories tarifées, publication/dépublication, upload multi-photos vers R2, suppression de photo, carrousel client sur les cartes et fiches. |
+| **Billetterie & Commandes mixtes** | Implémenté | Panier combinant tickets d'événement et places de convoi, réservation atomique des capacités (`D1 batch` + rollback compensatoire), TTL 2h, génération anticipée des tickets (`pending`). |
+| **Paiements Wave & Vérification** | Implémenté | Génération auto du lien `pay.wave.com/m/<id>/c/ci?amount=<montant>` + QR code de paiement, soumission justificatif par capture R2 et/ou ID Wave (gel de l'expiration), validation admin en 1 clic ou rejet avec restitution des places, unicité de `wave_transaction_ref`. |
+| **Convois** | Implémenté (API + Achat client) | Modèle DB, création et liste passagers via API (`/api/admin/events/:id/convoys`, `/api/admin/convoys/:id/passengers`), sélection et achat côté client sur `/events/[slug]`. *(Reste à ajouter si activé en V1 : formulaire de création de convoi dans l'UI `/admin/events`.)* |
+| **QR Codes & Contrôle d'accès** | Implémenté | Tokens opaques masqués tant que le paiement n'est pas confirmé, affichage QR code dans `/tickets`, scanner caméra (`BarcodeDetector`) + saisie manuelle dans `/admin/scanner`, validation atomique anti double-scan. |
+| **Administration & Audit** | Implémenté | Dashboard KPIs, file de vérification des paiements, gestion des rôles/permissions (`payments:verify`) et consultation des `audit_logs`. |
+| **Notifications** | Implémenté (API) | Table `notifications` alimentée sur création de commande, dépôt de justificatif, confirmation et rejet ; endpoints `GET /api/notifications` et `PATCH /api/notifications/:id/read`. *(Reste à brancher : cloche de notifications dans la `Navbar`.)* |
+| **Architecture & Qualité** | Implémenté | Monorepo Bun, Service Binding `API` via `/api/[...path].ts` (`cloudflare:workers`), lib partagée `packages/utils` (`tryCatch`, `Result`, `isUniqueConstraintError`), thème blanc/vert avec police `Satoshi-Variable`, tests Vitest API. |
+
