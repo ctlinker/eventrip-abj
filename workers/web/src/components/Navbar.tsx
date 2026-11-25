@@ -22,31 +22,31 @@ export default function Navbar() {
 
 	return (
 		<header class="sticky top-0 z-40 border-b border-green-100 bg-white/95 backdrop-blur">
-			<div class="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
-				<a href="/" class="flex items-center gap-2.5">
+			<div class="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3.5 sm:px-6">
+				<a href="/" class="flex items-center gap-2 shrink-0">
 					<span class="flex h-9 w-9 items-center justify-center rounded-xl bg-green-600 text-white shadow-sm">
 						<Ticket class="h-5 w-5" />
 					</span>
-					<span class="text-lg font-bold tracking-tight text-slate-900">
+					<span class="whitespace-nowrap text-base sm:text-lg font-bold tracking-tight text-slate-900">
 						EVENTRIP<span class="text-green-600">-ABJ</span>
 					</span>
 				</a>
 
-				<nav class="flex items-center gap-2 sm:gap-5 text-sm font-medium text-slate-600">
-					<a href="/" class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 hover:bg-green-50 hover:text-green-700 transition-colors">
+				<nav class="flex items-center gap-1.5 sm:gap-4 text-sm font-medium text-slate-600">
+					<a href="/" title="Événements" aria-label="Événements" class="inline-flex items-center gap-1.5 rounded-lg p-2 sm:px-2.5 sm:py-1.5 hover:bg-green-50 hover:text-green-700 transition-colors">
 						<Calendar class="h-4 w-4" />
 						<span class="hidden sm:inline">Événements</span>
 					</a>
 
 					{user && (
 						<>
-							<a href="/orders" class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 hover:bg-green-50 hover:text-green-700 transition-colors">
+							<a href="/orders" title="Commandes" aria-label="Commandes" class="inline-flex items-center gap-1.5 rounded-lg p-2 sm:px-2.5 sm:py-1.5 hover:bg-green-50 hover:text-green-700 transition-colors">
 								<ShoppingBag class="h-4 w-4" />
 								<span class="hidden sm:inline">Commandes</span>
 							</a>
-							<a href="/tickets" class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 hover:bg-green-50 hover:text-green-700 transition-colors">
+							<a href="/tickets" title="Mes billets" aria-label="Mes billets" class="inline-flex items-center gap-1.5 rounded-lg p-2 sm:px-2.5 sm:py-1.5 hover:bg-green-50 hover:text-green-700 transition-colors">
 								<Ticket class="h-4 w-4" />
-								<span>Mes billets</span>
+								<span class="hidden sm:inline">Mes billets</span>
 							</a>
 						</>
 					)}
@@ -54,10 +54,12 @@ export default function Navbar() {
 					{isAdmin && (
 						<a
 							href="/admin"
-							class="inline-flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-1.5 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+							title="Administration"
+							aria-label="Administration"
+							class="inline-flex items-center gap-1.5 rounded-lg bg-green-50 p-2 sm:px-3 sm:py-1.5 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
 						>
 							<ShieldCheck class="h-4 w-4" />
-							<span>Admin</span>
+							<span class="hidden sm:inline">Admin</span>
 						</a>
 					)}
 
