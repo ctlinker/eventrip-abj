@@ -10,6 +10,7 @@ interface Props {
 }
 
 const { title = 'EVENTRIP-ABJ — Billetterie & Convois' } = Astro.props;
+const currentPath = Astro.url.pathname;
 
 let initialUser: ApiUser | null = null;
 let ssrResolved = false;
@@ -42,22 +43,24 @@ if (api) {
 <html lang="fr">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<link rel="stylesheet" href="/satoshi_fonts/WEB/css/satoshi.css" />
 		<title>{title}</title>
 	</head>
 	<body class="min-h-screen bg-white text-slate-900 flex flex-col">
-		<Navbar initialUser={initialUser} ssrResolved={ssrResolved} client:load />
+		<Navbar initialUser={initialUser} ssrResolved={ssrResolved} currentPath={currentPath} client:load />
 		<main class="flex-1">
 			<slot />
 		</main>
-		<footer class="border-t border-green-100 bg-green-50/40 py-8 mt-16">
+		<div class="mt-20 h-3 w-full border-y border-slate-200/70 bg-hatched-slate" aria-hidden="true"></div>
+		<footer class="bg-white py-8">
 			<div class="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
-				<p class="font-medium text-slate-700">
-					EVENTRIP<span class="text-green-600">-ABJ</span> · Billetterie &amp; Convois Côte d'Ivoire
+				<p class="font-bold text-slate-900 tracking-tight">
+					EVENTRIP<span class="text-emerald-500">.</span>{' '}
+					<span class="font-normal text-slate-500">· Événements &amp; Convois en Côte d'Ivoire</span>
 				</p>
-				<p>Paiements sécurisés par vérification Wave</p>
+				<p>Paiements sécurisés Wave · Billets Aller-Retour vérifiés</p>
 			</div>
 		</footer>
 	</body>

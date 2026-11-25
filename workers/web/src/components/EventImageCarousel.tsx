@@ -12,8 +12,8 @@ export default function EventImageCarousel({ urls, alt, aspectClass = 'aspect-[1
 
 	if (urls.length === 0) {
 		return (
-			<div class={`relative ${aspectClass} w-full bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center overflow-hidden`}>
-				<Ticket class="h-12 w-12 text-green-600/60" />
+			<div class={`relative ${aspectClass} w-full bg-slate-50 bg-hatched-green flex items-center justify-center overflow-hidden`}>
+				<Ticket class="h-12 w-12 text-emerald-600/50" />
 			</div>
 		);
 	}
@@ -33,7 +33,7 @@ export default function EventImageCarousel({ urls, alt, aspectClass = 'aspect-[1
 	}
 
 	return (
-		<div class={`relative ${aspectClass} w-full bg-green-50 overflow-hidden group/carousel`}>
+		<div class={`relative ${aspectClass} w-full bg-slate-100 overflow-hidden group/carousel`}>
 			<div
 				class="flex h-full w-full transition-transform duration-300 ease-out"
 				style={{ transform: `translateX(-${safeIndex * 100}%)` }}
