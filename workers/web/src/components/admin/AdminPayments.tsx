@@ -33,7 +33,18 @@ export default function AdminPayments() {
 		setLoading(true);
 		const qs = status ? `?status=${status}` : '';
 		apiFetch<{ payments: AdminPayment[] }>(`/api/admin/payments${qs}`)
-			.then((res) => setPayments(res.payments))
+			.then((res) => {
+				setPayments(res.payments);
+				setWaveRefs((prev) => {
+					const next = { ...prev };
+					for (const p of res.payments) {
+						if (p.wave_transaction_ref && !next[p.id]) {
+							next[p.id] = p.wave_transaction_ref;
+						}
+					}
+					return next;
+				});
+			})
 			.catch((err) => setError(err.message))
 			.finally(() => setLoading(false));
 	}
@@ -131,6 +142,11 @@ export default function AdminPayments() {
 										Créée le {formatDate(p.created_at)}
 										{p.submitted_at ? ` · Justificatif envoyé le ${formatDate(p.submitted_at)}` : ''}
 									</p>
+									{p.wave_transaction_ref && p.status === 'pending' && (
+										<p class="mt-1 text-xs font-semibold text-green-700">
+											ID Wave déclaré par le client : <span class="font-mono">{p.wave_transaction_ref}</span>
+										</p>
+									)}
 								</div>
 
 								<div class="text-right">

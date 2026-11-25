@@ -4,6 +4,7 @@ import { isUniqueConstraintError, tryCatch } from 'utils';
 import { requireAuth } from '../middleware/auth';
 import {
 	addHoursIso,
+	buildWavePaymentUrl,
 	createNotification,
 	generateOrderReference,
 	generateTicketCode,
@@ -353,10 +354,26 @@ clientRoutes.get('/orders/:id', async (c) => {
 			.execute(),
 	]);
 
+	let eventWaveUrl: string | null = null;
+	if (tickets.length > 0) {
+		const ev = await db
+			.selectFrom('events')
+			.select(['wave_payment_url'])
+			.where('id', '=', tickets[0].event_id)
+			.executeTakeFirst();
+		eventWaveUrl = ev?.wave_payment_url ?? null;
+	}
+
+	const wavePaymentUrl = buildWavePaymentUrl(
+		eventWaveUrl,
+		order.total_amount_xof,
+		c.env.WAVE_MERCHANT_ID,
+	);
+
 	return c.json({
 		order,
 		items,
-		payment: payment ?? null,
+		payment: payment ? { ...payment, wave_payment_url: wavePaymentUrl } : null,
 		tickets: tickets.map((t) => ({
 			...t,
 			qr_token: t.status === 'valid' ? t.qr_token : null,
@@ -398,36 +415,83 @@ clientRoutes.post('/orders/:id/proof', async (c) => {
 		return c.json({ error: 'Cette commande a expiré' }, 410);
 	}
 
-	const formRes = await tryCatch(c.req.formData());
-	const formData = formRes.ok ? formRes.data : null;
-	if (!formData) {
-		return c.json({ error: 'Requête multipart invalide' }, 400);
+	const contentType = c.req.header('content-type') || '';
+	let file: File | null = null;
+	let payerPhone: string | null = user.phone ?? null;
+	let waveRef: string | null = null;
+
+	if (contentType.includes('application/json')) {
+		const jsonRes = await tryCatch(
+			c.req.json<{ payer_phone?: string; wave_transaction_ref?: string }>(),
+		);
+		if (!jsonRes.ok) {
+			return c.json({ error: 'Corps JSON invalide' }, 400);
+		}
+		if (jsonRes.data.payer_phone?.trim()) payerPhone = jsonRes.data.payer_phone.trim();
+		if (jsonRes.data.wave_transaction_ref?.trim()) {
+			waveRef = jsonRes.data.wave_transaction_ref.trim();
+		}
+	} else {
+		const formRes = await tryCatch(c.req.formData());
+		const formData = formRes.ok ? formRes.data : null;
+		if (!formData) {
+			return c.json({ error: 'Requête multipart ou JSON invalide' }, 400);
+		}
+		const rawFile = formData.get('file');
+		if (rawFile && rawFile instanceof File && rawFile.size > 0) {
+			file = rawFile;
+		}
+		const rawPhone = formData.get('payer_phone');
+		if (typeof rawPhone === 'string' && rawPhone.trim()) {
+			payerPhone = rawPhone.trim();
+		}
+		const rawRef = formData.get('wave_transaction_ref');
+		if (typeof rawRef === 'string' && rawRef.trim()) {
+			waveRef = rawRef.trim();
+		}
 	}
 
-	const file = formData.get('file');
-	if (!file || !(file instanceof File)) {
-		return c.json({ error: 'Le fichier justificatif (champ "file") est requis' }, 400);
+	if (!file && !waveRef) {
+		return c.json(
+			{ error: 'Veuillez fournir une capture d’écran ou un ID de transaction Wave' },
+			400,
+		);
 	}
 
-	const ext = ALLOWED_PROOF_MIME[file.type];
-	if (!ext) {
-		return c.json({ error: 'Format non supporté (JPEG, PNG ou WebP uniquement)' }, 400);
-	}
-	if (file.size <= 0 || file.size > MAX_PROOF_BYTES) {
-		return c.json({ error: 'Taille du fichier invalide (max 5 Mo)' }, 400);
+	if (waveRef) {
+		const alreadyConfirmed = await db
+			.selectFrom('payments')
+			.select(['id'])
+			.where('wave_transaction_ref', '=', waveRef)
+			.where('status', '=', 'confirmed')
+			.executeTakeFirst();
+		if (alreadyConfirmed) {
+			return c.json(
+				{ error: 'Cet ID de transaction Wave a déjà été utilisé pour un autre paiement' },
+				409,
+			);
+		}
 	}
 
-	const rawPhone = formData.get('payer_phone');
-	const payerPhone = typeof rawPhone === 'string' && rawPhone.trim() ? rawPhone.trim() : user.phone ?? null;
+	let key: string | null = null;
+	if (file) {
+		const ext = ALLOWED_PROOF_MIME[file.type];
+		if (!ext) {
+			return c.json({ error: 'Format non supporté (JPEG, PNG ou WebP uniquement)' }, 400);
+		}
+		if (file.size > MAX_PROOF_BYTES) {
+			return c.json({ error: 'Taille du fichier invalide (max 5 Mo)' }, 400);
+		}
 
-	const key = `proofs/${orderId}/${crypto.randomUUID()}.${ext}`;
-	const putRes = await tryCatch(
-		c.env.UPLOADS.put(key, await file.arrayBuffer(), {
-			httpMetadata: { contentType: file.type },
-		}),
-	);
-	if (!putRes.ok) {
-		return c.json({ error: 'Échec du téléversement du justificatif' }, 500);
+		key = `proofs/${orderId}/${crypto.randomUUID()}.${ext}`;
+		const putRes = await tryCatch(
+			c.env.UPLOADS.put(key, await file.arrayBuffer(), {
+				httpMetadata: { contentType: file.type },
+			}),
+		);
+		if (!putRes.ok) {
+			return c.json({ error: 'Échec du téléversement du justificatif' }, 500);
+		}
 	}
 
 	// Transition atomique vers under_review pour geler l'expiration
@@ -438,7 +502,7 @@ clientRoutes.post('/orders/:id/proof', async (c) => {
 		.run();
 
 	if ((res.meta?.changes ?? 0) !== 1) {
-		await c.env.UPLOADS.delete(key);
+		if (key) await c.env.UPLOADS.delete(key);
 		return c.json({ error: 'La commande a expiré ou a déjà été traitée' }, 409);
 	}
 
@@ -446,6 +510,7 @@ clientRoutes.post('/orders/:id/proof', async (c) => {
 		.updateTable('payments')
 		.set({
 			proof_image_key: key,
+			wave_transaction_ref: waveRef,
 			payer_phone: payerPhone,
 			submitted_at: now,
 			updated_at: now,
@@ -461,7 +526,12 @@ clientRoutes.post('/orders/:id/proof', async (c) => {
 		link: `/orders/${orderId}`,
 	});
 
-	return c.json({ ok: true, status: 'under_review', proof_image_key: key });
+	return c.json({
+		ok: true,
+		status: 'under_review',
+		proof_image_key: key,
+		wave_transaction_ref: waveRef,
+	});
 });
 
 clientRoutes.get('/tickets', async (c) => {

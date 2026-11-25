@@ -31,6 +31,24 @@ export function slugify(input: string): string {
 		.replace(/^-+|-+$/g, '');
 }
 
+export function buildWavePaymentUrl(
+	eventWaveUrlOrMerchantId: string | null | undefined,
+	amountXof: number,
+	fallbackMerchantId?: string,
+): string | null {
+	const raw = eventWaveUrlOrMerchantId?.trim() || fallbackMerchantId?.trim();
+	if (!raw) return null;
+
+	let base = raw;
+	if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
+		base = `https://pay.wave.com/m/${encodeURIComponent(raw)}/c/ci`;
+	}
+
+	const url = new URL(base);
+	url.searchParams.set('amount', String(amountXof));
+	return url.toString();
+}
+
 export async function writeAuditLog(
 	db: Database,
 	params: {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import QRCode from 'qrcode';
 import { Clock, Upload, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-preact';
 import { apiFetch, formatDate, formatXof } from '../lib/api';
 
@@ -27,6 +28,8 @@ interface OrderDetailResponse {
 		expected_amount_xof: number;
 		payer_phone: string | null;
 		proof_image_key: string | null;
+		wave_transaction_ref: string | null;
+		wave_payment_url: string | null;
 		status: string;
 		rejection_reason: string | null;
 		submitted_at: string | null;
@@ -44,15 +47,27 @@ export default function OrderDetail({ orderId }: Props) {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [payerPhone, setPayerPhone] = useState('');
+	const [waveRef, setWaveRef] = useState('');
 	const [file, setFile] = useState<File | null>(null);
 	const [uploading, setUploading] = useState(false);
 	const [remainingText, setRemainingText] = useState('');
+	const [waveQrSrc, setWaveQrSrc] = useState('');
 
 	function load() {
 		apiFetch<OrderDetailResponse>(`/api/orders/${orderId}`)
 			.then((res) => {
 				setData(res);
 				if (res.payment?.payer_phone) setPayerPhone(res.payment.payer_phone);
+				if (res.payment?.wave_transaction_ref) setWaveRef(res.payment.wave_transaction_ref);
+				if (res.payment?.wave_payment_url) {
+					QRCode.toDataURL(res.payment.wave_payment_url, {
+						width: 200,
+						margin: 1,
+						color: { dark: '#14532d', light: '#ffffff' },
+					})
+						.then(setWaveQrSrc)
+						.catch(() => {});
+				}
 			})
 			.catch((err) => setError(err.message))
 			.finally(() => setLoading(false));
@@ -81,12 +96,16 @@ export default function OrderDetail({ orderId }: Props) {
 
 	async function handleUpload(e: Event) {
 		e.preventDefault();
-		if (!file) return;
+		if (!file && !waveRef.trim()) {
+			setError('Veuillez fournir une capture d’écran ou un ID de transaction Wave.');
+			return;
+		}
 		setUploading(true);
 		setError(null);
 
 		const form = new FormData();
-		form.append('file', file);
+		if (file) form.append('file', file);
+		if (waveRef.trim()) form.append('wave_transaction_ref', waveRef.trim());
 		if (payerPhone.trim()) form.append('payer_phone', payerPhone.trim());
 
 		try {
@@ -137,7 +156,10 @@ export default function OrderDetail({ orderId }: Props) {
 					{order.status === 'under_review' && (
 						<div class="inline-flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-4 py-2 text-sm font-semibold text-green-700">
 							<Clock class="h-4 w-4" />
-							<span>Justificatif en cours de vérification</span>
+							<span>
+								Justificatif en cours de vérification
+								{payment?.wave_transaction_ref ? ` (${payment.wave_transaction_ref})` : ''}
+							</span>
 						</div>
 					)}
 
@@ -162,38 +184,79 @@ export default function OrderDetail({ orderId }: Props) {
 
 			{order.status === 'pending_payment' && (
 				<div class="rounded-2xl border border-green-200 bg-green-50/50 p-6 sm:p-8 space-y-6">
-					<div>
-						<h2 class="text-lg font-bold text-slate-900">Régler avec Wave &amp; envoyer le justificatif</h2>
-						<p class="mt-1 text-sm text-slate-600">
-							1. Effectuez votre paiement Wave de <strong>{formatXof(order.total_amount_xof)}</strong>.<br />
-							2. Prenez une capture d’écran de la confirmation Wave et importez-la ci-dessous.
-						</p>
+					<div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+						<div class="space-y-3">
+							<h2 class="text-lg font-bold text-slate-900">
+								1. Régler {formatXof(order.total_amount_xof)} avec Wave
+							</h2>
+							<p class="text-sm text-slate-600">
+								Cliquez sur le bouton ci-dessous depuis votre mobile ou scannez le QR code avec l’application Wave.
+							</p>
+							{payment?.wave_payment_url && (
+								<a
+									href={payment.wave_payment_url}
+									target="_blank"
+									rel="noopener noreferrer"
+									class="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-green-700 transition-colors"
+								>
+									<span>Payer avec Wave ({formatXof(order.total_amount_xof)})</span>
+									<ExternalLink class="h-4 w-4" />
+								</a>
+							)}
+						</div>
+
+						{waveQrSrc && (
+							<div class="flex flex-col items-center rounded-2xl border border-green-200 bg-white p-3 shrink-0">
+								<img src={waveQrSrc} alt="QR Code paiement Wave" class="h-40 w-40" />
+								<span class="mt-1.5 text-[11px] font-semibold text-green-700">
+									Scanner pour payer via Wave
+								</span>
+							</div>
+						)}
 					</div>
 
-					<form onSubmit={handleUpload} class="space-y-4">
-						<div>
-							<label class="block text-sm font-medium text-slate-700 mb-1">
-								Numéro Wave utilisé
-							</label>
-							<input
-								type="tel"
-								value={payerPhone}
-								onInput={(e) => setPayerPhone((e.target as HTMLInputElement).value)}
-								placeholder="+225 07 00 00 00 00"
-								class="w-full max-w-sm rounded-xl border border-green-200 bg-white px-3.5 py-2.5 text-sm focus:border-green-600 focus:outline-none"
-							/>
+					<form onSubmit={handleUpload} class="space-y-4 pt-5 border-t border-green-200">
+						<h3 class="text-base font-bold text-slate-900">
+							2. Envoyer votre justificatif (capture d’écran ou ID de transaction Wave)
+						</h3>
+
+						<div class="grid gap-4 sm:grid-cols-2">
+							<div>
+								<label class="block text-sm font-medium text-slate-700 mb-1">
+									ID de transaction Wave
+								</label>
+								<input
+									type="text"
+									value={waveRef}
+									onInput={(e) => setWaveRef((e.target as HTMLInputElement).value)}
+									placeholder="Ex: T_CI_XXXXXXXX"
+									class="w-full rounded-xl border border-green-200 bg-white px-3.5 py-2.5 text-sm font-mono focus:border-green-600 focus:outline-none"
+								/>
+							</div>
+
+							<div>
+								<label class="block text-sm font-medium text-slate-700 mb-1">
+									Numéro Wave utilisé (optionnel)
+								</label>
+								<input
+									type="tel"
+									value={payerPhone}
+									onInput={(e) => setPayerPhone((e.target as HTMLInputElement).value)}
+									placeholder="+225 07 00 00 00 00"
+									class="w-full rounded-xl border border-green-200 bg-white px-3.5 py-2.5 text-sm focus:border-green-600 focus:outline-none"
+								/>
+							</div>
 						</div>
 
 						<div>
 							<label class="block text-sm font-medium text-slate-700 mb-1">
-								Capture d’écran Wave (JPEG, PNG, WebP — max 5 Mo)
+								Capture d’écran Wave (optionnel si ID saisi — JPEG, PNG, WebP max 5 Mo)
 							</label>
 							<input
 								type="file"
-								required
 								accept="image/jpeg,image/png,image/webp"
 								onChange={(e) => setFile((e.target as HTMLInputElement).files?.[0] || null)}
-								class="block w-full max-w-sm text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-green-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700 cursor-pointer"
+								class="block w-full max-w-md text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-green-600 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-green-700 cursor-pointer"
 							/>
 						</div>
 
@@ -205,11 +268,11 @@ export default function OrderDetail({ orderId }: Props) {
 
 						<button
 							type="submit"
-							disabled={!file || uploading}
+							disabled={(!file && !waveRef.trim()) || uploading}
 							class="inline-flex items-center gap-2 rounded-xl bg-green-600 px-5 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50 cursor-pointer"
 						>
 							<Upload class="h-4 w-4" />
-							{uploading ? 'Envoi en cours...' : 'Envoyer le justificatif'}
+							{uploading ? 'Envoi en cours...' : 'Soumettre pour validation'}
 						</button>
 					</form>
 				</div>

@@ -144,6 +144,16 @@ describe('Eventrip API Core', () => {
 		expect(orderData.order.total_amount_xof).toBe(35000);
 		expect(orderData.order.status).toBe('pending_payment');
 
+		// Vérifier que GET /api/orders/:id génère wave_payment_url avec ?amount=35000
+		const orderDetailRes = await SELF.fetch(`https://example.com/api/orders/${orderData.order.id}`, {
+			headers: { Cookie: clientCookie },
+		});
+		expect(orderDetailRes.status).toBe(200);
+		const detailData = (await orderDetailRes.json()) as {
+			payment: { wave_payment_url: string | null };
+		};
+		expect(detailData.payment.wave_payment_url).toBe('https://pay.wave.com/m/M_ci_test?amount=35000');
+
 		// 2. Dépassement de capacité refusé (409) et places non corrompues
 		const overRes = await SELF.fetch('https://example.com/api/orders', {
 			method: 'POST',
@@ -268,6 +278,30 @@ describe('Eventrip API Core', () => {
 			.bind(categoryId)
 			.first<{ reserved_count: number }>();
 		expect(catAfter?.reserved_count).toBe(2); // 2 de la 1ère commande, 1 restitué
+
+		// 9. Soumission de justificatif uniquement via ID de transaction Wave (sans capture)
+		const refOnlyOrderRes = await SELF.fetch('https://example.com/api/orders', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: clientCookie },
+			body: JSON.stringify({
+				items: [{ type: 'ticket_category', id: categoryId, quantity: 1 }],
+			}),
+		});
+		expect(refOnlyOrderRes.status).toBe(201);
+		const refOnlyOrder = (await refOnlyOrderRes.json()) as { order: { id: string } };
+		const refProofRes = await SELF.fetch(`https://example.com/api/orders/${refOnlyOrder.order.id}/proof`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: clientCookie },
+			body: JSON.stringify({ wave_transaction_ref: 'WAVE-TX-ONLY-999' }),
+		});
+		expect(refProofRes.status).toBe(200);
+		const refProofData = (await refProofRes.json()) as {
+			status: string;
+			wave_transaction_ref: string;
+		};
+		expect(refProofData.status).toBe('under_review');
+		expect(refProofData.wave_transaction_ref).toBe('WAVE-TX-ONLY-999');
+
 		expect(clientUserId).toBeTruthy();
 	});
 });
