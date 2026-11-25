@@ -1,8 +1,7 @@
 import { getErrorMessage, tryCatch } from 'utils';
 
 export const API_BASE =
-	(import.meta as unknown as { env?: Record<string, string> }).env?.PUBLIC_API_URL ||
-	'http://127.0.0.1:8787';
+	(import.meta as unknown as { env?: Record<string, string> }).env?.PUBLIC_API_URL || '';
 
 export interface ApiUser {
 	id: string;

@@ -7,8 +7,8 @@ export default function Navbar() {
 	const [loaded, setLoaded] = useState(false);
 
 	useEffect(() => {
-		apiFetch<{ user: ApiUser }>('/api/me')
-			.then((res) => setUser(res.user))
+		apiFetch<{ user?: ApiUser } | null>('/api/auth/get-session')
+			.then((res) => setUser(res?.user ?? null))
 			.catch(() => setUser(null))
 			.finally(() => setLoaded(true));
 	}, []);
