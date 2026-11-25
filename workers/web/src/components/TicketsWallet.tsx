@@ -91,17 +91,17 @@ async function downloadTicketReceipt(t: WalletTicket) {
 
 	// Détails de l'événement et du billet
 	const rows: Array<[string, string]> = [
-		['Événement', t.event_title],
+		['Événement', t.event_title || '—'],
 		[
 			t.item_type === 'convoy_ticket' ? 'Convoi' : 'Catégorie',
 			(t.item_type === 'convoy_ticket' ? t.convoy_name : t.category_name) || 'Standard',
 		],
 		['Date', formatDate(t.convoy_departure_at || t.event_starts_at)],
-		['Lieu', t.convoy_meeting_point || t.event_venue],
-		['Titulaire', t.holder_name],
-		['Référence commande', t.order_reference],
-		['Code billet', t.code],
-		['Montant payé', formatXof(t.price_xof)],
+		['Lieu', t.convoy_meeting_point || t.event_venue || '—'],
+		['Titulaire', t.holder_name || 'Client'],
+		['Référence commande', t.order_reference || t.order_id.slice(0, 8)],
+		['Code billet', t.code || '—'],
+		['Montant payé', typeof t.price_xof === 'number' ? formatXof(t.price_xof) : '—'],
 	];
 
 	let y = 290;
@@ -116,7 +116,7 @@ async function downloadTicketReceipt(t: WalletTicket) {
 				? 'bold 20px "Satoshi-Variable", "Satoshi-Regular", sans-serif'
 				: '600 18px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
 		ctx.textAlign = 'right';
-		ctx.fillText(value.slice(0, 42), width - 48, y);
+		ctx.fillText(String(value ?? '—').slice(0, 42), width - 48, y);
 		ctx.textAlign = 'left';
 
 		ctx.strokeStyle = '#f0fdf4';
@@ -213,8 +213,12 @@ export default function TicketsWallet() {
 								) : (
 									<span>Catégorie : {t.category_name}</span>
 								)}
-								{' · '}
-								<span>{formatXof(t.price_xof)}</span>
+								{typeof t.price_xof === 'number' && (
+									<>
+										{' · '}
+										<span>{formatXof(t.price_xof)}</span>
+									</>
+								)}
 							</p>
 
 							<div class="mt-3 space-y-1 text-xs text-slate-600">
