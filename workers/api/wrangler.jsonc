@@ -32,9 +32,6 @@
 	"vars": {
 		"WAVE_MERCHANT_ID": "M_ci_d5gtAH7j1J1L"
 	},
-	"vars": {
-		"WAVE_MERCHANT_ID": "M_ci_eventrip"
-	},
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
