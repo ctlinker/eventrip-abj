@@ -1,7 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { getAuth, getDB } from 'db';
+import { getAuth } from 'db';
 import { requireAuth } from './middleware/auth';
+import { publicRoutes } from './routes/public';
+import { clientRoutes } from './routes/client';
+import { adminRoutes } from './routes/admin';
+import { superAdminRoutes } from './routes/super-admin';
+import { expirePendingOrders } from './services/orders';
 import type { AppEnv } from './types';
 
 const app = new Hono<AppEnv>();
@@ -29,10 +34,14 @@ app.get('/api/me', requireAuth, (c) => {
 	return c.json({ user: c.get('user') });
 });
 
+app.route('/api', publicRoutes);
+app.route('/api', clientRoutes);
+app.route('/api/admin', adminRoutes);
+app.route('/api/super-admin', superAdminRoutes);
+
 export default {
 	fetch: app.fetch,
-	async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-		// TODO (Jalon 2): Expiration automatique des commandes en pending_payment > 2h
-		getDB(env.DB);
+	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+		ctx.waitUntil(expirePendingOrders(env.DB));
 	},
 } satisfies ExportedHandler<Env>;
