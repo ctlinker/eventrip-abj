@@ -34,7 +34,7 @@ interface AdminEvent {
 }
 
 export default function AdminEvents() {
-	const [view, setView] = useState<'list' | 'create' | 'categories'>('list');
+	const [view, setView] = useState<'list' | 'create' | 'categories' | 'departures'>('list');
 	const [events, setEvents] = useState<AdminEvent[]>([]);
 	const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
 	const [defaultMerchantId, setDefaultMerchantId] = useState('');
@@ -53,11 +53,19 @@ export default function AdminEvents() {
 	const [newCatName, setNewCatName] = useState('');
 	const [showInlineCat, setShowInlineCat] = useState(false);
 
-	// Départ initial obligatoire à la création
-	const [depCommune, setDepCommune] = useState<string>('Cocody');
-	const [depMeetingPoint, setDepMeetingPoint] = useState('');
-	const [depAt, setDepAt] = useState('2026-12-20T14:00');
-	const [depCapacity, setDepCapacity] = useState('55');
+	// Départs définis à la création (au moins 1 obligatoire, extensible avec +)
+	const [initialDepartures, setInitialDepartures] = useState<
+		Array<{ commune: string; meetingPoint: string; departureAt: string; capacity: string }>
+	>([{ commune: 'Cocody', meetingPoint: '', departureAt: '2026-12-20T14:00', capacity: '55' }]);
+
+	// Onglet dédié Départs
+	const [depTabEventId, setDepTabEventId] = useState('');
+	const [depTabForm, setDepTabForm] = useState({
+		commune: 'Cocody',
+		meetingPoint: '',
+		departureAt: '2026-12-20T14:00',
+		capacity: '55',
+	});
 
 	const [convoyForm, setConvoyForm] = useState<{
 		eventId: string;
@@ -84,6 +92,9 @@ export default function AdminEvents() {
 				setEvents(res.events);
 				setEventCategories(res.event_categories || []);
 				if (res.default_wave_merchant_id) setDefaultMerchantId(res.default_wave_merchant_id);
+				if (res.events.length > 0 && !depTabEventId) {
+					setDepTabEventId(res.events[0].id);
+				}
 			})
 			.catch((err) => setError(err.message));
 	}
@@ -118,6 +129,11 @@ export default function AdminEvents() {
 	async function handleCreateEvent(e: Event) {
 		e.preventDefault();
 		setError(null);
+		const firstDep = initialDepartures[0];
+		if (!firstDep) {
+			setError('Au moins un départ initial est requis.');
+			return;
+		}
 		try {
 			const created = await apiFetch<{ event: AdminEvent }>('/api/admin/events', {
 				method: 'POST',
@@ -131,13 +147,37 @@ export default function AdminEvents() {
 					wave_payment_url: waveUrl.trim() || null,
 					status: 'published',
 					initial_departure: {
-						commune: depCommune,
-						meeting_point: depMeetingPoint,
-						departure_at: new Date(depAt).toISOString(),
-						capacity: Number(depCapacity) || 55,
+						commune: firstDep.commune,
+						meeting_point: firstDep.meetingPoint,
+						departure_at: new Date(firstDep.departureAt).toISOString(),
+						capacity: Number(firstDep.capacity) || 55,
 					},
 				}),
 			});
+
+			const extraConvoys: AdminEvent['convoys'] = [];
+			if (created.event?.id && initialDepartures.length > 1) {
+				for (const extra of initialDepartures.slice(1)) {
+					if (!extra.meetingPoint.trim()) continue;
+					const convRes = await apiFetch<{ convoy: AdminEvent['convoys'][number] }>(
+						`/api/admin/events/${created.event.id}/convoys`,
+						{
+							method: 'POST',
+							body: JSON.stringify({
+								name: `Départ ${extra.commune}`,
+								commune: extra.commune,
+								meeting_point: extra.meetingPoint,
+								destination: venue,
+								departure_at: new Date(extra.departureAt).toISOString(),
+								trip_type: 'round_trip',
+								price_xof: 0,
+								capacity: Number(extra.capacity) || 55,
+							}),
+						},
+					);
+					if (convRes.convoy) extraConvoys.push(convRes.convoy);
+				}
+			}
 
 			let posterKey: string | null = null;
 			let posterKeys: string[] = [];
@@ -163,9 +203,11 @@ export default function AdminEvents() {
 						...created.event,
 						poster_key: posterKey,
 						poster_keys: posterKeys,
+						convoys: [...(created.event.convoys || []), ...extraConvoys],
 					},
 					...prev,
 				]);
+				setDepTabEventId((prev) => prev || created.event.id);
 			}
 
 			setTitle('');
@@ -175,9 +217,47 @@ export default function AdminEvents() {
 			setCategoryId('');
 			setWaveUrl('');
 			setInitialPhotos([]);
-			setDepMeetingPoint('');
-			setDepCapacity('55');
+			setInitialDepartures([
+				{ commune: 'Cocody', meetingPoint: '', departureAt: '2026-12-20T14:00', capacity: '55' },
+			]);
 			setView('list');
+		} catch (err: any) {
+			setError(err.message);
+		}
+	}
+
+	async function handleAddDepartureFromTab(e: Event) {
+		e.preventDefault();
+		const targetEvent = events.find((ev) => ev.id === depTabEventId) || events[0];
+		if (!targetEvent) return;
+		setError(null);
+		try {
+			const res = await apiFetch<{ convoy: AdminEvent['convoys'][number] }>(
+				`/api/admin/events/${targetEvent.id}/convoys`,
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						name: `Départ ${depTabForm.commune}`,
+						commune: depTabForm.commune,
+						meeting_point: depTabForm.meetingPoint,
+						destination: targetEvent.venue,
+						departure_at: new Date(depTabForm.departureAt).toISOString(),
+						trip_type: 'round_trip',
+						price_xof: 0,
+						capacity: Number(depTabForm.capacity) || 55,
+					}),
+				},
+			);
+			if (res.convoy) {
+				setEvents((prev) =>
+					prev.map((item) =>
+						item.id === targetEvent.id
+							? { ...item, convoys: [...item.convoys, res.convoy] }
+							: item,
+					),
+				);
+			}
+			setDepTabForm((prev) => ({ ...prev, meetingPoint: '' }));
 		} catch (err: any) {
 			setError(err.message);
 		}
@@ -316,6 +396,21 @@ export default function AdminEvents() {
 						<Tag class="h-4 w-4 text-emerald-600" />
 						Catégories ({eventCategories.length})
 					</button>
+					<button
+						type="button"
+						onClick={() => {
+							setView('departures');
+							setError(null);
+						}}
+						class={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition-colors cursor-pointer ${
+							view === 'departures'
+								? 'bg-white text-slate-950 border border-slate-200 shadow-xs'
+								: 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
+						}`}
+					>
+						<Bus class="h-4 w-4 text-emerald-600" />
+						Départs ({events.reduce((acc, ev) => acc + ev.convoys.length, 0)})
+					</button>
 				</div>
 
 				{view !== 'create' ? (
@@ -350,9 +445,9 @@ export default function AdminEvents() {
 			)}
 
 			{view === 'categories' && (
-				<div class="rounded-2xl border border-green-100 bg-white p-6 space-y-5">
+				<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-5">
 					<div>
-						<h2 class="text-lg font-bold text-slate-900">Catégories d’événements</h2>
+						<h2 class="text-lg font-extrabold text-slate-950">Catégories d’événements</h2>
 						<p class="text-xs text-slate-500 mt-0.5">
 							Ajoutez des types d’événements (Concert live, Séminaire, Excursion…) utilisables lors de la création et pour filtrer l’accueil.
 						</p>
@@ -361,15 +456,17 @@ export default function AdminEvents() {
 					<form onSubmit={handleAddEventCategory} class="flex flex-wrap gap-2">
 						<input
 							type="text"
+							name="new_category"
+							aria-label="Nouvelle catégorie"
 							required
 							placeholder="Nouvelle catégorie (ex: Conférence, Gala...)"
 							value={newCatName}
 							onInput={(e) => setNewCatName((e.target as HTMLInputElement).value)}
-							class="flex-1 min-w-[220px] rounded-xl border border-green-200 px-3.5 py-2 text-sm focus:border-green-600 focus:outline-none"
+							class="flex-1 min-w-[220px] rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
 						/>
 						<button
 							type="submit"
-							class="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 cursor-pointer"
+							class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 cursor-pointer shadow-xs"
 						>
 							<Plus class="h-4 w-4" />
 							Ajouter
@@ -380,9 +477,9 @@ export default function AdminEvents() {
 						{eventCategories.map((cat) => (
 							<span
 								key={cat.id}
-								class="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3.5 py-1.5 text-xs font-semibold text-green-800"
+								class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-800"
 							>
-								<Tag class="h-3.5 w-3.5 text-green-600" />
+								<Tag class="h-3.5 w-3.5 text-emerald-600" />
 								{cat.name}
 							</span>
 						))}
@@ -390,30 +487,197 @@ export default function AdminEvents() {
 				</div>
 			)}
 
+			{view === 'departures' && (
+				<div class="space-y-6">
+					<form
+						onSubmit={handleAddDepartureFromTab}
+						class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4"
+					>
+						<div>
+							<h2 class="text-lg font-extrabold text-slate-950">Ajouter un départ (commune)</h2>
+							<p class="text-xs text-slate-500 mt-0.5">
+								Associez une nouvelle commune de départ à un événement existant (55 places par défaut, sans changement de prix).
+							</p>
+						</div>
+
+						{events.length === 0 ? (
+							<p class="text-sm text-slate-500">
+								Créez d’abord un événement avant d’ajouter des départs supplémentaires.
+							</p>
+						) : (
+							<>
+								<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+									<div class="lg:col-span-2">
+										<label for="dep-tab-event" class="block text-xs font-semibold text-slate-600 mb-1">
+											Événement
+										</label>
+										<select
+											id="dep-tab-event"
+											value={depTabEventId || events[0]?.id || ''}
+											onChange={(e) => setDepTabEventId((e.target as HTMLSelectElement).value)}
+											class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+										>
+											{events.map((ev) => (
+												<option key={ev.id} value={ev.id}>
+													{ev.title} ({ev.venue})
+												</option>
+											))}
+										</select>
+									</div>
+
+									<div>
+										<label for="dep-tab-commune" class="block text-xs font-semibold text-slate-600 mb-1">
+											Commune
+										</label>
+										<select
+											id="dep-tab-commune"
+											value={depTabForm.commune}
+											onChange={(e) =>
+												setDepTabForm({
+													...depTabForm,
+													commune: (e.target as HTMLSelectElement).value,
+												})
+											}
+											class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+										>
+											{ABIDJAN_COMMUNES.map((c) => (
+												<option key={c} value={c}>
+													{c}
+												</option>
+											))}
+										</select>
+									</div>
+
+									<div>
+										<label for="dep-tab-meeting" class="block text-xs font-semibold text-slate-600 mb-1">
+											Point de rassemblement
+										</label>
+										<input
+											id="dep-tab-meeting"
+											type="text"
+											required
+											placeholder="Ex: Cosmos Yopougon"
+											value={depTabForm.meetingPoint}
+											onInput={(e) =>
+												setDepTabForm({
+													...depTabForm,
+													meetingPoint: (e.target as HTMLInputElement).value,
+												})
+											}
+											class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+										/>
+									</div>
+
+									<div>
+										<label for="dep-tab-capacity" class="block text-xs font-semibold text-slate-600 mb-1">
+											Places (défaut 55)
+										</label>
+										<input
+											id="dep-tab-capacity"
+											type="number"
+											required
+											min={1}
+											value={depTabForm.capacity}
+											onInput={(e) =>
+												setDepTabForm({
+													...depTabForm,
+													capacity: (e.target as HTMLInputElement).value,
+												})
+											}
+											class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+										/>
+									</div>
+								</div>
+
+								<div class="flex flex-wrap items-end justify-between gap-3">
+									<div>
+										<label for="dep-tab-at" class="block text-xs font-semibold text-slate-600 mb-1">
+											Date et heure de départ
+										</label>
+										<input
+											id="dep-tab-at"
+											type="datetime-local"
+											required
+											value={depTabForm.departureAt}
+											onInput={(e) =>
+												setDepTabForm({
+													...depTabForm,
+													departureAt: (e.target as HTMLInputElement).value,
+												})
+											}
+											class="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+										/>
+									</div>
+
+									<button
+										type="submit"
+										class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 cursor-pointer shadow-xs"
+									>
+										<Plus class="h-4 w-4" />
+										Ajouter ce départ
+									</button>
+								</div>
+							</>
+						)}
+					</form>
+
+					<div class="space-y-4">
+						{events.map((ev) => (
+							<div key={ev.id} class="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+								<div class="flex flex-wrap items-center justify-between gap-2">
+									<h3 class="font-extrabold text-slate-950">{ev.title}</h3>
+									<span class="text-xs font-semibold text-slate-500">
+										{ev.convoys.length} départ(s)
+									</span>
+								</div>
+								<div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+									{ev.convoys.map((cv) => (
+										<div
+											key={cv.id}
+											class="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-xs"
+										>
+											<div class="min-w-0 pr-2">
+												<p class="font-bold text-slate-900 truncate">{cv.commune || cv.name}</p>
+												<p class="text-slate-500 truncate">{cv.meeting_point}</p>
+											</div>
+											<span class="shrink-0 font-bold text-emerald-700">
+												{Math.max(0, cv.capacity - cv.reserved_count)}/{cv.capacity} dispo
+											</span>
+										</div>
+									))}
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
+
 			{view === 'create' && (
-				<form onSubmit={handleCreateEvent} class="rounded-2xl border border-green-200 bg-white p-6 sm:p-8 space-y-5 shadow-xs">
-					<h2 class="text-xl font-bold text-slate-900">Créer un nouvel événement</h2>
+				<form onSubmit={handleCreateEvent} class="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 space-y-5 shadow-xs">
+					<h2 class="text-xl font-extrabold text-slate-950">Créer un nouvel événement</h2>
 
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div>
-							<label class="block text-xs font-semibold text-slate-600 mb-1">Titre</label>
+							<label for="ev-title" class="block text-xs font-semibold text-slate-600 mb-1">Titre</label>
 							<input
+								id="ev-title"
 								type="text"
 								required
 								placeholder="Ex: Concert Live Assinie"
 								value={title}
 								onInput={(e) => setTitle((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-green-200 px-3.5 py-2 text-sm"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
 							/>
 						</div>
 
 						<div>
-							<label class="block text-xs font-semibold text-slate-600 mb-1">Catégorie</label>
+							<label for="ev-cat" class="block text-xs font-semibold text-slate-600 mb-1">Catégorie</label>
 							<div class="flex gap-2">
 								<select
+									id="ev-cat"
 									value={categoryId}
 									onChange={(e) => setCategoryId((e.target as HTMLSelectElement).value)}
-									class="flex-1 rounded-xl border border-green-200 bg-white px-3.5 py-2 text-sm"
+									class="flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
 								>
 									<option value="">Choisir une catégorie...</option>
 									{eventCategories.map((cat) => (
@@ -426,7 +690,7 @@ export default function AdminEvents() {
 									type="button"
 									title="Ajouter une nouvelle catégorie"
 									onClick={() => setShowInlineCat(!showInlineCat)}
-									class="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700 hover:bg-green-100 cursor-pointer"
+									class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-slate-100 cursor-pointer"
 								>
 									+
 								</button>
@@ -438,12 +702,12 @@ export default function AdminEvents() {
 										placeholder="Nom nouvelle catégorie"
 										value={newCatName}
 										onInput={(e) => setNewCatName((e.target as HTMLInputElement).value)}
-										class="flex-1 rounded-xl border border-green-200 px-3 py-1.5 text-xs"
+										class="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs"
 									/>
 									<button
 										type="button"
 										onClick={() => handleAddEventCategory()}
-										class="rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white cursor-pointer"
+										class="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white cursor-pointer"
 									>
 										Créer
 									</button>
@@ -452,107 +716,184 @@ export default function AdminEvents() {
 						</div>
 
 						<div>
-							<label class="block text-xs font-semibold text-slate-600 mb-1">Lieu / Destination</label>
+							<label for="ev-venue" class="block text-xs font-semibold text-slate-600 mb-1">Lieu / Destination</label>
 							<input
+								id="ev-venue"
 								type="text"
 								required
 								placeholder="Ex: Assinie-Mafia"
 								value={venue}
 								onInput={(e) => setVenue((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-green-200 px-3.5 py-2 text-sm"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
 							/>
 						</div>
 
 						<div>
-							<label class="block text-xs font-semibold text-slate-600 mb-1">Date et heure</label>
+							<label for="ev-starts" class="block text-xs font-semibold text-slate-600 mb-1">Date et heure</label>
 							<input
+								id="ev-starts"
 								type="datetime-local"
 								required
 								value={startsAt}
 								onInput={(e) => setStartsAt((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-green-200 px-3.5 py-2 text-sm"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
 							/>
 						</div>
 
 						<div>
-							<label class="block text-xs font-semibold text-slate-600 mb-1">Prix du billet (FCFA)</label>
+							<label for="ev-price" class="block text-xs font-semibold text-slate-600 mb-1">Prix du billet (FCFA)</label>
 							<input
+								id="ev-price"
 								type="number"
 								required
 								min={0}
 								placeholder="Ex: 10000"
 								value={priceXof}
 								onInput={(e) => setPriceXof((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-green-200 px-3.5 py-2 text-sm"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
 							/>
 						</div>
 
 						<div>
-							<label class="block text-xs font-semibold text-slate-600 mb-1">
+							<label for="ev-wave" class="block text-xs font-semibold text-slate-600 mb-1">
 								ID Marchand Wave (optionnel)
 							</label>
 							<input
+								id="ev-wave"
 								type="text"
 								placeholder={`Défaut : ${defaultMerchantId || 'plateforme'}`}
 								value={waveUrl}
 								onInput={(e) => setWaveUrl((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-green-200 px-3.5 py-2 text-sm"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
 							/>
 						</div>
 					</div>
 
 					<div>
-						<label class="block text-xs font-semibold text-slate-600 mb-1">Description</label>
+						<label for="ev-desc" class="block text-xs font-semibold text-slate-600 mb-1">Description</label>
 						<textarea
+							id="ev-desc"
 							required
 							rows={3}
 							placeholder="Description de l'événement"
 							value={description}
 							onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
-							class="w-full rounded-xl border border-green-200 px-3.5 py-2 text-sm"
+							class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
 						/>
 					</div>
 
-					<div class="rounded-xl border border-green-100 bg-green-50/40 p-4 space-y-3">
-						<p class="text-xs font-bold uppercase tracking-wide text-green-800">
-							Départ initial obligatoire (commune &amp; places)
-						</p>
-						<div class="grid gap-3 sm:grid-cols-4">
-							<select
-								value={depCommune}
-								onChange={(e) => setDepCommune((e.target as HTMLSelectElement).value)}
-								class="rounded-xl border border-green-200 bg-white px-3.5 py-2 text-sm"
+					<div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4 space-y-3">
+						<div class="flex flex-wrap items-center justify-between gap-2">
+							<p class="text-xs font-bold uppercase tracking-wide text-slate-700">
+								Départs par commune (au moins 1 obligatoire · 55 places par défaut)
+							</p>
+							<button
+								type="button"
+								onClick={() =>
+									setInitialDepartures((prev) => [
+										...prev,
+										{
+											commune: ABIDJAN_COMMUNES[prev.length % ABIDJAN_COMMUNES.length],
+											meetingPoint: '',
+											departureAt: prev[0]?.departureAt || '2026-12-20T14:00',
+											capacity: '55',
+										},
+									])
+								}
+								class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50 cursor-pointer"
 							>
-								{ABIDJAN_COMMUNES.map((c) => (
-									<option key={c} value={c}>
-										{c}
-									</option>
-								))}
-							</select>
-							<input
-								type="text"
-								required
-								placeholder="Point de rassemblement"
-								value={depMeetingPoint}
-								onInput={(e) => setDepMeetingPoint((e.target as HTMLInputElement).value)}
-								class="rounded-xl border border-green-200 bg-white px-3.5 py-2 text-sm"
-							/>
-							<input
-								type="datetime-local"
-								required
-								value={depAt}
-								onInput={(e) => setDepAt((e.target as HTMLInputElement).value)}
-								class="rounded-xl border border-green-200 bg-white px-3.5 py-2 text-sm"
-							/>
-							<input
-								type="number"
-								required
-								min={1}
-								placeholder="Places (défaut 55)"
-								value={depCapacity}
-								onInput={(e) => setDepCapacity((e.target as HTMLInputElement).value)}
-								class="rounded-xl border border-green-200 bg-white px-3.5 py-2 text-sm"
-							/>
+								<Plus class="h-3.5 w-3.5" />
+								Ajouter un départ
+							</button>
+						</div>
+
+						<div class="space-y-2.5">
+							{initialDepartures.map((dep, idx) => (
+								<div key={idx} class="grid gap-2.5 sm:grid-cols-12 items-center">
+									<select
+										aria-label={`Commune départ ${idx + 1}`}
+										value={dep.commune}
+										onChange={(e) =>
+											setInitialDepartures((prev) =>
+												prev.map((d, i) =>
+													i === idx
+														? { ...d, commune: (e.target as HTMLSelectElement).value }
+														: d,
+												),
+											)
+										}
+										class="sm:col-span-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+									>
+										{ABIDJAN_COMMUNES.map((c) => (
+											<option key={c} value={c}>
+												{c}
+											</option>
+										))}
+									</select>
+									<input
+										type="text"
+										required
+										placeholder="Point de rassemblement"
+										value={dep.meetingPoint}
+										onInput={(e) =>
+											setInitialDepartures((prev) =>
+												prev.map((d, i) =>
+													i === idx
+														? { ...d, meetingPoint: (e.target as HTMLInputElement).value }
+														: d,
+												),
+											)
+										}
+										class="sm:col-span-4 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+									/>
+									<input
+										type="datetime-local"
+										required
+										value={dep.departureAt}
+										onInput={(e) =>
+											setInitialDepartures((prev) =>
+												prev.map((d, i) =>
+													i === idx
+														? { ...d, departureAt: (e.target as HTMLInputElement).value }
+														: d,
+												),
+											)
+										}
+										class="sm:col-span-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+									/>
+									<div class="sm:col-span-2 flex gap-1.5 items-center">
+										<input
+											type="number"
+											required
+											min={1}
+											placeholder="55"
+											value={dep.capacity}
+											onInput={(e) =>
+												setInitialDepartures((prev) =>
+													prev.map((d, i) =>
+														i === idx
+															? { ...d, capacity: (e.target as HTMLInputElement).value }
+															: d,
+													),
+												)
+											}
+											class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+										/>
+										{initialDepartures.length > 1 && (
+											<button
+												type="button"
+												onClick={() =>
+													setInitialDepartures((prev) => prev.filter((_, i) => i !== idx))
+												}
+												title="Retirer ce départ"
+												class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 hover:text-red-600 cursor-pointer"
+											>
+												<X class="h-3.5 w-3.5" />
+											</button>
+										)}
+									</div>
+								</div>
+							))}
 						</div>
 					</div>
 
