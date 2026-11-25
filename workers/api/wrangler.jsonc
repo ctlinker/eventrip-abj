@@ -26,6 +26,9 @@
 			"preview_bucket_name": "eventrip-uploads-preview",
 		}
 	],
+	"triggers": {
+		"crons": ["*/5 * * * *"]
+	},
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

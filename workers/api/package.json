@@ -20,6 +20,7 @@
 		"wrangler": "^4.168.0"
 	},
 	"dependencies": {
+		"db": "workspace:*",
 		"hono": "^4.13.22"
 	}
 }

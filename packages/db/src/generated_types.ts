@@ -3,6 +3,12 @@
  * Please do not edit it manually.
  */
 
+import type { ColumnType } from "kysely";
+
+export type Generated<T> = T extends ColumnType<infer S, infer I, infer U>
+  ? ColumnType<S, I | undefined, U>
+  : ColumnType<T, T | undefined, T>;
+
 export interface Account {
   accessToken: string | null;
   accessTokenExpiresAt: string | null;
@@ -19,6 +25,104 @@ export interface Account {
   userId: string;
 }
 
+export interface AuditLogs {
+  action: string;
+  actor_id: string | null;
+  created_at: string;
+  entity_id: string;
+  entity_type: string;
+  id: string;
+  metadata: string | null;
+  new_state: string | null;
+  old_state: string | null;
+}
+
+export interface Convoys {
+  capacity: number;
+  created_at: string;
+  departure_at: string;
+  destination: string;
+  event_id: string;
+  extra_info: string | null;
+  id: string;
+  meeting_point: string;
+  name: string;
+  price_xof: number;
+  reserved_count: Generated<number>;
+  status: Generated<string>;
+  trip_type: string;
+  updated_at: string;
+}
+
+export interface Events {
+  created_at: string;
+  created_by: string;
+  description: string;
+  ends_at: string | null;
+  extra_info: string | null;
+  id: string;
+  poster_key: string | null;
+  sales_end_at: string | null;
+  sales_start_at: string | null;
+  slug: string;
+  starts_at: string;
+  status: Generated<string>;
+  title: string;
+  updated_at: string;
+  venue: string;
+  wave_payment_url: string | null;
+}
+
+export interface Notifications {
+  body: string;
+  created_at: string;
+  id: string;
+  is_read: Generated<number>;
+  link: string | null;
+  title: string;
+  type: string;
+  user_id: string;
+}
+
+export interface OrderItems {
+  convoy_id: string | null;
+  id: string;
+  item_type: string;
+  order_id: string;
+  quantity: number;
+  subtotal_xof: number;
+  ticket_category_id: string | null;
+  unit_price_xof: number;
+}
+
+export interface Orders {
+  created_at: string;
+  expires_at: string;
+  id: string;
+  reference: string;
+  status: Generated<string>;
+  total_amount_xof: number;
+  updated_at: string;
+  user_id: string;
+}
+
+export interface Payments {
+  created_at: string;
+  expected_amount_xof: number;
+  id: string;
+  order_id: string;
+  payer_phone: string | null;
+  proof_image_key: string | null;
+  rejection_reason: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  status: Generated<string>;
+  submitted_at: string | null;
+  updated_at: string;
+  user_id: string;
+  wave_transaction_ref: string | null;
+}
+
 export interface Session {
   createdAt: string;
   expiresAt: string;
@@ -30,13 +134,48 @@ export interface Session {
   userId: string;
 }
 
+export interface TicketCategories {
+  capacity: number;
+  created_at: string;
+  description: string | null;
+  event_id: string;
+  id: string;
+  name: string;
+  price_xof: number;
+  reserved_count: Generated<number>;
+  sort_order: Generated<number>;
+  updated_at: string;
+}
+
+export interface Tickets {
+  code: string;
+  convoy_id: string | null;
+  created_at: string;
+  event_id: string;
+  id: string;
+  item_type: string;
+  order_id: string;
+  order_item_id: string;
+  qr_token: string;
+  scanned_by: string | null;
+  status: Generated<string>;
+  ticket_category_id: string | null;
+  updated_at: string;
+  used_at: string | null;
+  user_id: string;
+}
+
 export interface User {
   createdAt: string;
   email: string;
   emailVerified: number;
   id: string;
   image: string | null;
+  is_active: Generated<number>;
   name: string;
+  permissions: Generated<string>;
+  phone: string | null;
+  role: Generated<string>;
   updatedAt: string;
 }
 
@@ -51,7 +190,16 @@ export interface Verification {
 
 export interface DB {
   account: Account;
+  audit_logs: AuditLogs;
+  convoys: Convoys;
+  events: Events;
+  notifications: Notifications;
+  order_items: OrderItems;
+  orders: Orders;
+  payments: Payments;
   session: Session;
+  ticket_categories: TicketCategories;
+  tickets: Tickets;
   user: User;
   verification: Verification;
 }

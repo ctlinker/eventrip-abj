@@ -35,6 +35,7 @@
       "name": "api",
       "version": "0.0.0",
       "dependencies": {
+        "db": "workspace:*",
         "hono": "^4.13.22",
       },
       "devDependencies": {

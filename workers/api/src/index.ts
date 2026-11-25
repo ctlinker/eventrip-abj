@@ -1,18 +1,38 @@
-/**
- * Welcome to Cloudflare Workers! This is your first worker.
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Bind resources to your worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { getAuth, getDB } from 'db';
+import { requireAuth } from './middleware/auth';
+import type { AppEnv } from './types';
+
+const app = new Hono<AppEnv>();
+
+app.use(
+	'/api/*',
+	cors({
+		origin: (origin) => origin || '*',
+		allowHeaders: ['Content-Type', 'Authorization'],
+		allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+		credentials: true,
+	}),
+);
+
+app.get('/api/health', (c) => {
+	return c.json({ ok: true, service: 'eventrip-api' });
+});
+
+app.all('/api/auth/*', (c) => {
+	const auth = getAuth(c.env.DB);
+	return auth.handler(c.req.raw);
+});
+
+app.get('/api/me', requireAuth, (c) => {
+	return c.json({ user: c.get('user') });
+});
 
 export default {
-	async fetch(request, env, ctx): Promise<Response> {
-		return new Response("Hello World!");
+	fetch: app.fetch,
+	async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+		// TODO (Jalon 2): Expiration automatique des commandes en pending_payment > 2h
+		getDB(env.DB);
 	},
 } satisfies ExportedHandler<Env>;

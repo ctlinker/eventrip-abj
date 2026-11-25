@@ -5,6 +5,32 @@ export const rawBetterAuthConfig = {
 	emailAndPassword: {
 		enabled: true,
 	},
+	user: {
+		additionalFields: {
+			phone: {
+				type: 'string' as const,
+				required: false,
+			},
+			role: {
+				type: 'string' as const,
+				required: false,
+				defaultValue: 'client',
+				input: false,
+			},
+			permissions: {
+				type: 'string' as const,
+				required: false,
+				defaultValue: '[]',
+				input: false,
+			},
+			is_active: {
+				type: 'number' as const,
+				required: false,
+				defaultValue: 1,
+				input: false,
+			},
+		},
+	},
 	trustedOrigins: async (request?: Request) => {
 		const list = [
 			'nostress://',
