@@ -14,8 +14,15 @@ Application web de billetterie événementielle et de gestion de convois de tran
 ## Structure du monorepo (`bun` workspaces)
 
 * `packages/db` : Schéma D1 (`migrations/*.sql`), client Kysely (`getDB`), Better Auth (`getAuth`), types générés (`src/generated_types.ts`) et helpers de rôles/permissions (`src/types.ts`).
+* `packages/utils` : Utilitaires partagés de gestion d'erreurs (`tryCatch`, `tryCatchSync`, `Result<T, E>`, `isUniqueConstraintError`, `getErrorMessage`).
 * `workers/api` : API REST Hono (`src/index.ts`), middlewares d'authentification/permissions (`src/middleware/auth.ts`), stockage R2 (`UPLOADS`) et Cron Trigger (`*/5 * * * *`).
 * `workers/web` : Frontend Astro SSR + îlots Preact + Tailwind CSS v4 déployé sur `@astrojs/cloudflare`.
+
+## Gestion des erreurs (`packages/utils`)
+
+* Pour toute opération susceptible d'échouer (appels D1, uploads R2, `fetch`, parsing JSON/multipart), utiliser `tryCatch` / `tryCatchSync` de `utils` au lieu de blocs `try/catch` ad hoc ou de `.catch(() => ({}))`.
+* Utiliser `isUniqueConstraintError(err)` pour détecter les violations de contrainte d'unicité D1/SQLite (téléphone, `wave_transaction_ref`, slug) et retourner un statut `409 Conflict` explicite.
+* Utiliser `getErrorMessage(err, fallback)` pour extraire un message lisible côté client/API.
 
 ## Invariants métier critiques (à ne jamais contourner)
 
