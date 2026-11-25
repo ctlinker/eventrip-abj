@@ -55,7 +55,15 @@ export interface Convoys {
   updated_at: string;
 }
 
+export interface EventCategories {
+  created_at: string;
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface Events {
+  category_id: string | null;
   created_at: string;
   created_by: string;
   description: string;
@@ -199,6 +207,7 @@ export interface DB {
   account: Account;
   audit_logs: AuditLogs;
   convoys: Convoys;
+  event_categories: EventCategories;
   events: Events;
   notifications: Notifications;
   order_items: OrderItems;

@@ -4,6 +4,7 @@ import migration001 from '../../../packages/db/migrations/001_better-auth.sql?ra
 import migration002 from '../../../packages/db/migrations/002_domain.sql?raw';
 import migration003 from '../../../packages/db/migrations/003_communes_roundtrip.sql?raw';
 import migration004 from '../../../packages/db/migrations/004_event_single_price.sql?raw';
+import migration005 from '../../../packages/db/migrations/005_event_categories.sql?raw';
 import { expirePendingOrders } from '../src/services/orders';
 import { maybeBootstrapSuperAdmin } from '../src/lib/bootstrap';
 
@@ -54,6 +55,7 @@ describe('Eventrip API Core', () => {
 		await applySql(migration002);
 		await applySql(migration003);
 		await applySql(migration004);
+		await applySql(migration005);
 
 		const client = await signUpAndGetCookie('Kouame Client', 'client@eventrip.ci', '+2250700000001');
 		clientCookie = client.cookie;
@@ -73,7 +75,16 @@ describe('Eventrip API Core', () => {
 			.bind(admin2.userId)
 			.run();
 
-		// Créer un événement publié avec prix unique + départ initial (55 pl. par défaut)
+		// Ajouter une catégorie d'événement personnalisée
+		const newCatRes = await SELF.fetch('https://example.com/api/admin/event-categories', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({ name: 'Afterwork' }),
+		});
+		expect(newCatRes.status).toBe(201);
+		const newCatData = (await newCatRes.json()) as { category: { id: string; name: string } };
+
+		// Créer un événement publié avec prix unique + catégorie + départ initial (55 pl. par défaut)
 		const evRes = await SELF.fetch('https://example.com/api/admin/events', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
@@ -83,6 +94,7 @@ describe('Eventrip API Core', () => {
 				starts_at: '2026-12-20T18:00:00Z',
 				venue: 'Assinie-Mafia',
 				price_xof: 15000,
+				category_id: newCatData.category.id,
 				wave_payment_url: 'https://pay.wave.com/m/M_ci_test',
 				status: 'published',
 				initial_departure: {
@@ -138,9 +150,19 @@ describe('Eventrip API Core', () => {
 
 		const list = await SELF.fetch('https://example.com/api/events');
 		expect(list.status).toBe(200);
-		const data = (await list.json()) as { events: Array<{ slug: string; categories: unknown[]; convoys: unknown[] }> };
+		const data = (await list.json()) as {
+			events: Array<{
+				slug: string;
+				category_name?: string | null;
+				categories: unknown[];
+				convoys: unknown[];
+			}>;
+			event_categories: unknown[];
+		};
 		expect(data.events.length).toBe(1);
 		expect(data.events[0].slug).toBe(eventSlug);
+		expect(data.events[0].category_name).toBe('Afterwork');
+		expect(data.event_categories.length).toBeGreaterThanOrEqual(6);
 		expect(data.events[0].categories.length).toBe(1);
 		expect(data.events[0].convoys.length).toBe(2);
 	});

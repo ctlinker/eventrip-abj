@@ -104,10 +104,17 @@ export default function EventCheckout({ slug }: Props) {
 					)}
 					<div class="p-6 sm:p-8">
 						<div class="flex flex-wrap items-center justify-between gap-3">
-							<span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-200">
-								<Calendar class="h-3.5 w-3.5" />
-								{formatDate(event.starts_at)}
-							</span>
+							<div class="flex flex-wrap items-center gap-2">
+								<span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-200">
+									<Calendar class="h-3.5 w-3.5" />
+									{formatDate(event.starts_at)}
+								</span>
+								{event.category_name && (
+									<span class="rounded-full bg-green-600 px-3 py-1 text-xs font-semibold text-white">
+										{event.category_name}
+									</span>
+								)}
+							</div>
 							<span class="text-lg font-bold text-green-700">
 								{formatXof(ticketPrice)} <span class="text-xs font-normal text-slate-500">/ billet (Aller-Retour inclus)</span>
 							</span>

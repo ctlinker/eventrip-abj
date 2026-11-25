@@ -70,6 +70,12 @@ export function sortConvoysByCommune(
 	});
 }
 
+export interface EventCategory {
+	id: string;
+	name: string;
+	slug: string;
+}
+
 export interface PublicEvent {
 	id: string;
 	slug: string;
@@ -81,6 +87,8 @@ export interface PublicEvent {
 	ends_at: string | null;
 	venue: string;
 	price_xof: number;
+	category_id?: string | null;
+	category_name?: string | null;
 	extra_info: string | null;
 	wave_payment_url: string | null;
 	categories: TicketCategory[];

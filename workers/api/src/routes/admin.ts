@@ -42,9 +42,72 @@ adminRoutes.get('/dashboard', async (c) => {
 	});
 });
 
+adminRoutes.get('/event-categories', async (c) => {
+	const db = getDB(c.env.DB);
+	const eventCategories = await db
+		.selectFrom('event_categories')
+		.selectAll()
+		.orderBy('name', 'asc')
+		.execute();
+	return c.json({ event_categories: eventCategories });
+});
+
+adminRoutes.post('/event-categories', async (c) => {
+	const bodyRes = await tryCatch(c.req.json<{ name?: string }>());
+	const name = bodyRes.ok ? bodyRes.data.name?.trim() : '';
+	if (!name) {
+		return c.json({ error: 'Le nom de la catégorie est requis' }, 400);
+	}
+
+	const slug = slugify(name);
+	if (!slug) {
+		return c.json({ error: 'Nom de catégorie invalide' }, 400);
+	}
+
+	const id = `cat-${slug}-${crypto.randomUUID().slice(0, 4)}`;
+	const now = nowIso();
+	const db = getDB(c.env.DB);
+
+	const insertRes = await tryCatch(
+		db
+			.insertInto('event_categories')
+			.values({
+				id,
+				name,
+				slug,
+				created_at: now,
+			})
+			.execute(),
+	);
+
+	if (!insertRes.ok) {
+		if (isUniqueConstraintError(insertRes.error)) {
+			return c.json({ error: 'Cette catégorie existe déjà' }, 409);
+		}
+		return c.json({ error: 'Impossible de créer la catégorie' }, 500);
+	}
+
+	const category = await db
+		.selectFrom('event_categories')
+		.selectAll()
+		.where('id', '=', id)
+		.executeTakeFirst();
+
+	return c.json({ category }, 201);
+});
+
 adminRoutes.get('/events', async (c) => {
 	const db = getDB(c.env.DB);
-	const events = await db.selectFrom('events').selectAll().orderBy('created_at', 'desc').execute();
+	const [events, eventCategories] = await Promise.all([
+		db
+			.selectFrom('events as e')
+			.leftJoin('event_categories as ec', 'ec.id', 'e.category_id')
+			.selectAll('e')
+			.select(['ec.name as category_name', 'ec.slug as category_slug'])
+			.orderBy('e.created_at', 'desc')
+			.execute(),
+		db.selectFrom('event_categories').selectAll().orderBy('name', 'asc').execute(),
+	]);
 	const categories = events.length
 		? await db.selectFrom('ticket_categories').selectAll().execute()
 		: [];
@@ -52,6 +115,7 @@ adminRoutes.get('/events', async (c) => {
 
 	return c.json({
 		default_wave_merchant_id: c.env.WAVE_MERCHANT_ID,
+		event_categories: eventCategories,
 		events: events.map((ev) => ({
 			...ev,
 			poster_keys: parsePosterKeys(ev.poster_key),
@@ -72,6 +136,7 @@ adminRoutes.post('/events', async (c) => {
 			ends_at?: string | null;
 			venue?: string;
 			price_xof?: number;
+			category_id?: string | null;
 			extra_info?: string | null;
 			wave_payment_url?: string | null;
 			sales_start_at?: string | null;
@@ -93,6 +158,7 @@ adminRoutes.post('/events', async (c) => {
 				ends_at?: string | null;
 				venue?: string;
 				price_xof?: number;
+				category_id?: string | null;
 				extra_info?: string | null;
 				wave_payment_url?: string | null;
 				sales_start_at?: string | null;
@@ -149,6 +215,7 @@ adminRoutes.post('/events', async (c) => {
 			ends_at: body.ends_at ?? null,
 			venue: body.venue.trim(),
 			price_xof: body.price_xof!,
+			category_id: body.category_id ?? null,
 			extra_info: body.extra_info ?? null,
 			wave_payment_url: body.wave_payment_url ?? null,
 			sales_start_at: body.sales_start_at ?? null,
@@ -182,7 +249,13 @@ adminRoutes.post('/events', async (c) => {
 		.execute();
 
 	const [event, convoy] = await Promise.all([
-		db.selectFrom('events').selectAll().where('id', '=', id).executeTakeFirst(),
+		db
+			.selectFrom('events as e')
+			.leftJoin('event_categories as ec', 'ec.id', 'e.category_id')
+			.selectAll('e')
+			.select(['ec.name as category_name', 'ec.slug as category_slug'])
+			.where('e.id', '=', id)
+			.executeTakeFirst(),
 		db.selectFrom('convoys').selectAll().where('id', '=', convoyId).executeTakeFirst(),
 	]);
 
@@ -215,6 +288,7 @@ adminRoutes.patch('/events/:id', async (c) => {
 		'ends_at',
 		'venue',
 		'price_xof',
+		'category_id',
 		'extra_info',
 		'wave_payment_url',
 		'sales_start_at',

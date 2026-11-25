@@ -5,17 +5,32 @@ import type { AppEnv } from '../types';
 
 export const publicRoutes = new Hono<AppEnv>();
 
+publicRoutes.get('/event-categories', async (c) => {
+	const db = getDB(c.env.DB);
+	const eventCategories = await db
+		.selectFrom('event_categories')
+		.selectAll()
+		.orderBy('name', 'asc')
+		.execute();
+	return c.json({ event_categories: eventCategories });
+});
+
 publicRoutes.get('/events', async (c) => {
 	const db = getDB(c.env.DB);
-	const events = await db
-		.selectFrom('events')
-		.selectAll()
-		.where('status', '=', 'published')
-		.orderBy('starts_at', 'asc')
-		.execute();
+	const [events, eventCategories] = await Promise.all([
+		db
+			.selectFrom('events as e')
+			.leftJoin('event_categories as ec', 'ec.id', 'e.category_id')
+			.selectAll('e')
+			.select(['ec.name as category_name', 'ec.slug as category_slug'])
+			.where('e.status', '=', 'published')
+			.orderBy('e.starts_at', 'asc')
+			.execute(),
+		db.selectFrom('event_categories').selectAll().orderBy('name', 'asc').execute(),
+	]);
 
 	if (events.length === 0) {
-		return c.json({ events: [] });
+		return c.json({ events: [], event_categories: eventCategories });
 	}
 
 	const eventIds = events.map((e) => e.id);
@@ -52,7 +67,7 @@ publicRoutes.get('/events', async (c) => {
 			})),
 	}));
 
-	return c.json({ events: result });
+	return c.json({ events: result, event_categories: eventCategories });
 });
 
 publicRoutes.get('/events/:slug', async (c) => {
@@ -60,10 +75,12 @@ publicRoutes.get('/events/:slug', async (c) => {
 	const slug = c.req.param('slug');
 
 	const event = await db
-		.selectFrom('events')
-		.selectAll()
-		.where('slug', '=', slug)
-		.where('status', '=', 'published')
+		.selectFrom('events as e')
+		.leftJoin('event_categories as ec', 'ec.id', 'e.category_id')
+		.selectAll('e')
+		.select(['ec.name as category_name', 'ec.slug as category_slug'])
+		.where('e.slug', '=', slug)
+		.where('e.status', '=', 'published')
 		.executeTakeFirst();
 
 	if (!event) {
