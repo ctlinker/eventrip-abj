@@ -22,6 +22,9 @@ export default function AdminEvents() {
 	const [startsAt, setStartsAt] = useState('2026-12-20T18:00');
 	const [venue, setVenue] = useState('');
 	const [waveUrl, setWaveUrl] = useState('');
+	const [initialCatName, setInitialCatName] = useState('Standard');
+	const [initialPrice, setInitialPrice] = useState('');
+	const [initialCapacity, setInitialCapacity] = useState('');
 	const [catForm, setCatForm] = useState<{ eventId: string; name: string; price: string; capacity: string }>({
 		eventId: '',
 		name: '',
@@ -47,7 +50,7 @@ export default function AdminEvents() {
 		e.preventDefault();
 		setError(null);
 		try {
-			await apiFetch('/api/admin/events', {
+			const created = await apiFetch<{ event: AdminEvent }>('/api/admin/events', {
 				method: 'POST',
 				body: JSON.stringify({
 					title,
@@ -58,10 +61,25 @@ export default function AdminEvents() {
 					status: 'published',
 				}),
 			});
+
+			if (created.event?.id && initialCatName.trim() && initialPrice !== '' && initialCapacity !== '') {
+				await apiFetch(`/api/admin/events/${created.event.id}/categories`, {
+					method: 'POST',
+					body: JSON.stringify({
+						name: initialCatName.trim(),
+						price_xof: Number(initialPrice),
+						capacity: Number(initialCapacity),
+					}),
+				});
+			}
+
 			setTitle('');
 			setDescription('');
 			setVenue('');
 			setWaveUrl('');
+			setInitialCatName('Standard');
+			setInitialPrice('');
+			setInitialCapacity('');
 			load();
 		} catch (err: any) {
 			setError(err.message);
@@ -143,6 +161,40 @@ export default function AdminEvents() {
 					onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
 					class="w-full rounded-xl border border-green-200 px-3.5 py-2 text-sm"
 				/>
+
+				<div class="rounded-xl border border-green-100 bg-green-50/40 p-4 space-y-3">
+					<p class="text-xs font-bold uppercase tracking-wide text-green-800">
+						Tarif &amp; places (1ère catégorie de ticket)
+					</p>
+					<div class="grid gap-3 sm:grid-cols-3">
+						<input
+							type="text"
+							required
+							placeholder="Nom catégorie (ex: Standard)"
+							value={initialCatName}
+							onInput={(e) => setInitialCatName((e.target as HTMLInputElement).value)}
+							class="rounded-xl border border-green-200 bg-white px-3.5 py-2 text-sm"
+						/>
+						<input
+							type="number"
+							required
+							min={0}
+							placeholder="Prix (FCFA)"
+							value={initialPrice}
+							onInput={(e) => setInitialPrice((e.target as HTMLInputElement).value)}
+							class="rounded-xl border border-green-200 bg-white px-3.5 py-2 text-sm"
+						/>
+						<input
+							type="number"
+							required
+							min={1}
+							placeholder="Nombre de places"
+							value={initialCapacity}
+							onInput={(e) => setInitialCapacity((e.target as HTMLInputElement).value)}
+							class="rounded-xl border border-green-200 bg-white px-3.5 py-2 text-sm"
+						/>
+					</div>
+				</div>
 				{error && <p class="text-xs text-red-600">{error}</p>}
 				<button
 					type="submit"
@@ -177,6 +229,11 @@ export default function AdminEvents() {
 						</div>
 
 						<div class="text-sm text-slate-700 space-y-1">
+							{ev.categories.length === 0 && (
+								<p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+									Aucune catégorie configurée — ajoutez un tarif ci-dessous pour activer la commande client.
+								</p>
+							)}
 							{ev.categories.map((c) => {
 								const merchant = ev.wave_payment_url || defaultMerchantId;
 								const previewUrl = merchant
@@ -245,7 +302,7 @@ export default function AdminEvents() {
 							<button
 								type="button"
 								onClick={() => setCatForm({ eventId: ev.id, name: '', price: '', capacity: '' })}
-								class="text-xs font-semibold text-green-700 hover:underline cursor-pointer"
+								class="inline-flex items-center gap-1 rounded-xl border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 cursor-pointer"
 							>
 								+ Ajouter une catégorie de tickets
 							</button>

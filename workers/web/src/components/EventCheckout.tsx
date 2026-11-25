@@ -110,6 +110,11 @@ export default function EventCheckout({ slug }: Props) {
 						<Ticket class="h-5 w-5 text-green-600" />
 						Catégories de tickets
 					</h2>
+					{event.categories.length === 0 ? (
+						<p class="mt-4 text-sm text-slate-500">
+							Aucune catégorie de ticket n'est encore configurée pour cet événement.
+						</p>
+					) : (
 					<div class="mt-4 divide-y divide-green-50">
 						{event.categories.map((cat) => {
 							const qty = catQty[cat.id] || 0;
@@ -150,6 +155,7 @@ export default function EventCheckout({ slug }: Props) {
 							);
 						})}
 					</div>
+					)}
 				</section>
 
 				{event.convoys.length > 0 && (
