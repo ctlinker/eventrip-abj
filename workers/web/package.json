@@ -20,6 +20,7 @@
 		"@tailwindcss/vite": "^4.3.5",
 		"animate.css": "^4.1.1",
 		"astro": "^7.4.13",
+		"jspdf": "^4.2.1",
 		"lucide-preact": "^1.79.0",
 		"preact": "^11.2.0",
 		"qrcode": "^1.5.4",

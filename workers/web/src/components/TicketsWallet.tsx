@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import QRCode from 'qrcode';
-import { Ticket, Calendar, MapPin, Bus, Lock, Download } from 'lucide-preact';
+import { Ticket, Calendar, MapPin, Bus, Lock, Download, FileText } from 'lucide-preact';
 import { apiFetch, formatDate, formatXof } from '../lib/api';
 
 interface WalletTicket {
@@ -36,8 +36,8 @@ function QrPreview({ token }: { token: string }) {
 	return <img src={src} alt="QR Code ticket" class="h-44 w-44 rounded-xl border border-green-100 p-2 bg-white" />;
 }
 
-async function downloadTicketReceipt(t: WalletTicket) {
-	if (!t.qr_token) return;
+async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement | null> {
+	if (!t.qr_token) return null;
 
 	const qrDataUrl = await QRCode.toDataURL(t.qr_token, {
 		width: 360,
@@ -58,7 +58,7 @@ async function downloadTicketReceipt(t: WalletTicket) {
 	canvas.width = width;
 	canvas.height = height;
 	const ctx = canvas.getContext('2d');
-	if (!ctx) return;
+	if (!ctx) return null;
 
 	// Fond blanc
 	ctx.fillStyle = '#ffffff';
@@ -144,10 +144,29 @@ async function downloadTicketReceipt(t: WalletTicket) {
 	ctx.textAlign = 'center';
 	ctx.fillText('Présentez ce QR code à l’entrée', width / 2, qrBoxY + 255);
 
+	return canvas;
+}
+
+async function downloadTicketImage(t: WalletTicket) {
+	const canvas = await renderReceiptCanvas(t);
+	if (!canvas) return;
 	const link = document.createElement('a');
 	link.download = `recu-${t.code}.png`;
 	link.href = canvas.toDataURL('image/png');
 	link.click();
+}
+
+async function downloadTicketPdf(t: WalletTicket) {
+	const canvas = await renderReceiptCanvas(t);
+	if (!canvas) return;
+	const { jsPDF } = await import('jspdf');
+	const doc = new jsPDF({
+		orientation: 'portrait',
+		unit: 'px',
+		format: [canvas.width, canvas.height],
+	});
+	doc.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
+	doc.save(`recu-${t.code}.pdf`);
 }
 
 const STATUS_INFO: Record<string, { label: string; cls: string }> = {
@@ -213,12 +232,8 @@ export default function TicketsWallet() {
 								) : (
 									<span>Catégorie : {t.category_name}</span>
 								)}
-								{typeof t.price_xof === 'number' && (
-									<>
-										{' · '}
-										<span>{formatXof(t.price_xof)}</span>
-									</>
-								)}
+								{' · '}
+								<span>{formatXof(t.price_xof)}</span>
 							</p>
 
 							<div class="mt-3 space-y-1 text-xs text-slate-600">
@@ -237,14 +252,24 @@ export default function TicketsWallet() {
 							{t.status === 'valid' && t.qr_token ? (
 								<>
 									<QrPreview token={t.qr_token} />
-									<button
-										type="button"
-										onClick={() => downloadTicketReceipt(t)}
-										class="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"
-									>
-										<Download class="h-4 w-4" />
-										Télécharger le reçu
-									</button>
+									<div class="flex flex-wrap items-center justify-center gap-2">
+										<button
+											type="button"
+											onClick={() => downloadTicketImage(t)}
+											class="inline-flex items-center gap-1.5 rounded-xl border border-green-300 bg-white px-3.5 py-2 text-xs font-semibold text-green-700 hover:bg-green-50 transition-colors cursor-pointer"
+										>
+											<Download class="h-4 w-4" />
+											Télécharger image
+										</button>
+										<button
+											type="button"
+											onClick={() => downloadTicketPdf(t)}
+											class="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-green-700 transition-colors cursor-pointer"
+										>
+											<FileText class="h-4 w-4" />
+											Télécharger PDF
+										</button>
+									</div>
 								</>
 							) : (
 								<div class="flex flex-col items-center py-6 text-center text-slate-500">
