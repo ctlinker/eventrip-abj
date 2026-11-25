@@ -10,5 +10,11 @@
 	},
 	"observability": {
 		"enabled": true
-	}
+	},
+	"services": [
+		{
+			"binding": "API",
+			"service": "api",
+		}
+	]
 }
