@@ -203,6 +203,13 @@ export interface Verification {
   value: string;
 }
 
+export interface Wishlists {
+  created_at: string;
+  event_id: string;
+  id: string;
+  user_id: string;
+}
+
 export interface DB {
   account: Account;
   audit_logs: AuditLogs;
@@ -218,4 +225,5 @@ export interface DB {
   tickets: Tickets;
   user: User;
   verification: Verification;
+  wishlists: Wishlists;
 }

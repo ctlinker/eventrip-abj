@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+import WishlistPage from '../components/WishlistPage';
+---
+
+<Layout title="Mes favoris — EVENTRIP-ABJ">
+	<section class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+		<h1 class="text-2xl font-bold text-slate-950 mb-2">Ma liste de souhaits</h1>
+		<p class="text-sm text-slate-600 mb-6">
+			Retrouvez vos événements sauvegardés et réservez vos places dès que vous êtes prêt.
+		</p>
+		<WishlistPage client:load />
+	</section>
+</Layout>

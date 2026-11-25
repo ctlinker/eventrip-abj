@@ -5,6 +5,7 @@ import migration002 from '../../../packages/db/migrations/002_domain.sql?raw';
 import migration003 from '../../../packages/db/migrations/003_communes_roundtrip.sql?raw';
 import migration004 from '../../../packages/db/migrations/004_event_single_price.sql?raw';
 import migration005 from '../../../packages/db/migrations/005_event_categories.sql?raw';
+import migration006 from '../../../packages/db/migrations/006_wishlists.sql?raw';
 import { expirePendingOrders } from '../src/services/orders';
 import { maybeBootstrapSuperAdmin } from '../src/lib/bootstrap';
 
@@ -56,6 +57,7 @@ describe('Eventrip API Core', () => {
 		await applySql(migration003);
 		await applySql(migration004);
 		await applySql(migration005);
+		await applySql(migration006);
 
 		const client = await signUpAndGetCookie('Kouame Client', 'client@eventrip.ci', '+2250700000001');
 		clientCookie = client.cookie;
@@ -380,6 +382,65 @@ describe('Eventrip API Core', () => {
 		expect(promotedFirst).toBe(true);
 		const promotedSecond = await maybeBootstrapSuperAdmin(env.DB, 'admin1@eventrip.ci');
 		expect(promotedSecond).toBe(false);
+
+		// 11. Liste de souhaits (wishlist) client
+		const addWish = await SELF.fetch(`https://example.com/api/wishlists/${eventId}`, {
+			method: 'POST',
+			headers: { Cookie: clientCookie },
+		});
+		expect(addWish.status).toBe(200);
+		const getWish = await SELF.fetch('https://example.com/api/wishlists', {
+			headers: { Cookie: clientCookie },
+		});
+		expect(getWish.status).toBe(200);
+		const wishData = (await getWish.json()) as { event_ids: string[] };
+		expect(wishData.event_ids).toContain(eventId);
+
+		const delWish = await SELF.fetch(`https://example.com/api/wishlists/${eventId}`, {
+			method: 'DELETE',
+			headers: { Cookie: clientCookie },
+		});
+		expect(delWish.status).toBe(200);
+
+		// 12. Suppression refusée si événement réservé (409), mais autorisée sans réservation + archivage
+		const blockedDelete = await SELF.fetch(`https://example.com/api/admin/events/${eventId}`, {
+			method: 'DELETE',
+			headers: { Cookie: adminVerifierCookie },
+		});
+		expect(blockedDelete.status).toBe(409);
+
+		const emptyEvRes = await SELF.fetch('https://example.com/api/admin/events', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({
+				title: 'Événement temporaire',
+				description: 'Test suppression & archivage',
+				starts_at: '2026-12-28T18:00:00Z',
+				venue: 'Plateau',
+				price_xof: 5000,
+				status: 'published',
+				initial_departure: {
+					commune: 'Plateau',
+					meeting_point: 'Place République',
+					departure_at: '2026-12-28T15:00:00Z',
+				},
+			}),
+		});
+		expect(emptyEvRes.status).toBe(201);
+		const emptyEvId = ((await emptyEvRes.json()) as { event: { id: string } }).event.id;
+
+		const archiveRes = await SELF.fetch(`https://example.com/api/admin/events/${emptyEvId}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({ status: 'archived' }),
+		});
+		expect(archiveRes.status).toBe(200);
+
+		const okDelete = await SELF.fetch(`https://example.com/api/admin/events/${emptyEvId}`, {
+			method: 'DELETE',
+			headers: { Cookie: adminVerifierCookie },
+		});
+		expect(okDelete.status).toBe(200);
 
 		expect(clientUserId).toBeTruthy();
 	});

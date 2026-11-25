@@ -9,6 +9,7 @@ import {
 	generateOrderReference,
 	generateTicketCode,
 	nowIso,
+	parsePosterKeys,
 } from '../lib/utils';
 import type { AppEnv } from '../types';
 
@@ -638,4 +639,107 @@ clientRoutes.patch('/notifications/:id/read', async (c) => {
 		.execute();
 
 	return c.json({ ok: true });
+});
+
+clientRoutes.get('/wishlists', async (c) => {
+	const user = c.get('user');
+	const db = getDB(c.env.DB);
+
+	const rows = await db
+		.selectFrom('wishlists as w')
+		.innerJoin('events as e', 'e.id', 'w.event_id')
+		.leftJoin('event_categories as ec', 'ec.id', 'e.category_id')
+		.selectAll('e')
+		.select(['ec.name as category_name', 'ec.slug as category_slug', 'w.created_at as saved_at'])
+		.where('w.user_id', '=', user.id)
+		.where('e.status', '=', 'published')
+		.orderBy('w.created_at', 'desc')
+		.execute();
+
+	if (rows.length === 0) {
+		return c.json({ event_ids: [], events: [] });
+	}
+
+	const eventIds = rows.map((e) => e.id);
+	const [categories, convoys] = await Promise.all([
+		db
+			.selectFrom('ticket_categories')
+			.selectAll()
+			.where('event_id', 'in', eventIds)
+			.orderBy('sort_order', 'asc')
+			.execute(),
+		db
+			.selectFrom('convoys')
+			.selectAll()
+			.where('event_id', 'in', eventIds)
+			.where('status', '=', 'published')
+			.orderBy('departure_at', 'asc')
+			.execute(),
+	]);
+
+	const events = rows.map((event) => ({
+		...event,
+		poster_keys: parsePosterKeys(event.poster_key),
+		categories: categories
+			.filter((cat) => cat.event_id === event.id)
+			.map((cat) => ({
+				...cat,
+				remaining: Math.max(0, cat.capacity - cat.reserved_count),
+			})),
+		convoys: convoys
+			.filter((conv) => conv.event_id === event.id)
+			.map((conv) => ({
+				...conv,
+				remaining: Math.max(0, conv.capacity - conv.reserved_count),
+			})),
+	}));
+
+	return c.json({ event_ids: eventIds, events });
+});
+
+clientRoutes.post('/wishlists/:eventId', async (c) => {
+	const user = c.get('user');
+	const eventId = c.req.param('eventId');
+	const db = getDB(c.env.DB);
+
+	const event = await db
+		.selectFrom('events')
+		.select(['id'])
+		.where('id', '=', eventId)
+		.where('status', '=', 'published')
+		.executeTakeFirst();
+	if (!event) {
+		return c.json({ error: 'Événement introuvable' }, 404);
+	}
+
+	const insertRes = await tryCatch(
+		db
+			.insertInto('wishlists')
+			.values({
+				id: crypto.randomUUID(),
+				user_id: user.id,
+				event_id: eventId,
+				created_at: nowIso(),
+			})
+			.execute(),
+	);
+	if (!insertRes.ok && !isUniqueConstraintError(insertRes.error)) {
+		return c.json({ error: 'Impossible d’ajouter aux favoris' }, 500);
+	}
+
+	return c.json({ saved: true, event_id: eventId });
+});
+
+clientRoutes.delete('/wishlists/:eventId', async (c) => {
+	const user = c.get('user');
+	const eventId = c.req.param('eventId');
+	const db = getDB(c.env.DB);
+
+	await db
+		.deleteFrom('wishlists')
+		.where('user_id', '=', user.id)
+		.where('event_id', '=', eventId)
+		.execute();
+
+	return c.json({ saved: false, event_id: eventId });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Bus, Ticket, ShoppingBag, LogIn, LogOut, ShieldCheck, Compass } from 'lucide-preact';
+import { Bus, Ticket, ShoppingBag, LogIn, LogOut, ShieldCheck, Compass, Heart } from 'lucide-preact';
 import { apiFetch, type ApiUser } from '../lib/api';
 
 interface Props {
@@ -56,6 +56,10 @@ export default function Navbar({ initialUser = null, ssrResolved = false, curren
 
 					{user && (
 						<>
+							<a href="/wishlist" title="Mes favoris" aria-label="Mes favoris" class={navLinkCls('/wishlist')}>
+								<Heart class="h-4 w-4 sm:hidden" />
+								<span class="hidden sm:inline">Favoris</span>
+							</a>
 							<a href="/orders" title="Mes commandes" aria-label="Mes commandes" class={navLinkCls('/orders')}>
 								<ShoppingBag class="h-4 w-4 sm:hidden" />
 								<span class="hidden sm:inline">Commandes</span>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Calendar, MapPin, Bus, Minus, Plus, ShoppingBag, CheckCircle2 } from 'lucide-preact';
+import { Calendar, MapPin, Bus, Minus, Plus, ShoppingBag, CheckCircle2, Heart } from 'lucide-preact';
 import {
+	ApiError,
 	apiFetch,
 	formatDate,
 	formatXof,
@@ -24,6 +25,8 @@ export default function EventCheckout({ slug }: Props) {
 	const [selectedConvoyId, setSelectedConvoyId] = useState<string>('');
 	const [quantity, setQuantity] = useState(1);
 	const [submitting, setSubmitting] = useState(false);
+	const [wishlisted, setWishlisted] = useState(false);
+	const [togglingWishlist, setTogglingWishlist] = useState(false);
 
 	useEffect(() => {
 		const savedCommune = localStorage.getItem('eventrip_commune') || '';
@@ -31,6 +34,7 @@ export default function EventCheckout({ slug }: Props) {
 		apiFetch<{ event: PublicEvent }>(`/api/events/${slug}`)
 			.then((data) => {
 				setEvent(data.event);
+				setWishlisted(Boolean(data.event.wishlisted));
 				const sorted = sortConvoysByCommune(data.event.convoys, savedCommune);
 
 				// Restaurer le panier si l'utilisateur revient de /auth
@@ -87,6 +91,27 @@ export default function EventCheckout({ slug }: Props) {
 
 	const sortedConvoys = sortConvoysByCommune(event.convoys, preferredCommune);
 	const selectedConvoy = sortedConvoys.find((cv) => cv.id === selectedConvoyId) || null;
+
+	async function handleToggleWishlist() {
+		if (!event || togglingWishlist) return;
+		const next = !wishlisted;
+		setTogglingWishlist(true);
+		try {
+			await apiFetch(`/api/wishlists/${event.id}`, {
+				method: next ? 'POST' : 'DELETE',
+			});
+			setWishlisted(next);
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 401) {
+				window.location.href = `/auth?next=/events/${slug}`;
+				return;
+			}
+			setError(err instanceof Error ? err.message : 'Impossible de mettre à jour vos favoris');
+		} finally {
+			setTogglingWishlist(false);
+		}
+	}
+
 	const ticketPrice =
 		event.price_xof > 0
 			? event.price_xof
@@ -165,9 +190,24 @@ export default function EventCheckout({ slug }: Props) {
 										</span>
 									</span>
 								</div>
-								<h1 class="mt-3 text-2xl sm:text-3xl font-black tracking-tight text-slate-950">
-									{event.title}
-								</h1>
+								<div class="mt-3 flex flex-wrap items-start justify-between gap-3">
+									<h1 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-950">
+										{event.title}
+									</h1>
+									<button
+										type="button"
+										onClick={handleToggleWishlist}
+										disabled={togglingWishlist}
+										class={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-bold transition-colors cursor-pointer ${
+											wishlisted
+												? 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100'
+												: 'border-slate-200 bg-white text-slate-700 hover:border-red-200 hover:text-red-600'
+										}`}
+									>
+										<Heart class={`h-4 w-4 ${wishlisted ? 'fill-red-500 text-red-500' : ''}`} />
+										<span>{wishlisted ? 'Dans mes favoris' : 'Ajouter aux favoris'}</span>
+									</button>
+								</div>
 								<p class="mt-2 flex items-center gap-2 text-sm font-medium text-slate-600">
 									<MapPin class="h-4 w-4 text-emerald-600 shrink-0" />
 									{event.venue}

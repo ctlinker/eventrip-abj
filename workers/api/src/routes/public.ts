@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import { getDB } from 'db';
+import { getAuth, getDB } from 'db';
+import { tryCatch } from 'utils';
 import { parsePosterKeys } from '../lib/utils';
 import type { AppEnv } from '../types';
 
@@ -30,7 +31,23 @@ publicRoutes.get('/events', async (c) => {
 	]);
 
 	if (events.length === 0) {
-		return c.json({ events: [], event_categories: eventCategories });
+		return c.json({ events: [], event_categories: eventCategories, wishlist_ids: [] });
+	}
+
+	let wishlistIds: string[] = [];
+	if (c.req.header('cookie')) {
+		const sessionRes = await tryCatch(
+			getAuth(c.env.DB).api.getSession({ headers: c.req.raw.headers }),
+		);
+		const userId = sessionRes.ok ? sessionRes.data?.user?.id : undefined;
+		if (userId) {
+			const wRows = await db
+				.selectFrom('wishlists')
+				.select(['event_id'])
+				.where('user_id', '=', userId)
+				.execute();
+			wishlistIds = wRows.map((r) => r.event_id);
+		}
 	}
 
 	const eventIds = events.map((e) => e.id);
@@ -67,7 +84,7 @@ publicRoutes.get('/events', async (c) => {
 			})),
 	}));
 
-	return c.json({ events: result, event_categories: eventCategories });
+	return c.json({ events: result, event_categories: eventCategories, wishlist_ids: wishlistIds });
 });
 
 publicRoutes.get('/events/:slug', async (c) => {
@@ -103,9 +120,27 @@ publicRoutes.get('/events/:slug', async (c) => {
 			.execute(),
 	]);
 
+	let wishlisted = false;
+	if (c.req.header('cookie')) {
+		const sessionRes = await tryCatch(
+			getAuth(c.env.DB).api.getSession({ headers: c.req.raw.headers }),
+		);
+		const userId = sessionRes.ok ? sessionRes.data?.user?.id : undefined;
+		if (userId) {
+			const wRow = await db
+				.selectFrom('wishlists')
+				.select(['id'])
+				.where('user_id', '=', userId)
+				.where('event_id', '=', event.id)
+				.executeTakeFirst();
+			wishlisted = Boolean(wRow);
+		}
+	}
+
 	return c.json({
 		event: {
 			...event,
+			wishlisted,
 			poster_keys: parsePosterKeys(event.poster_key),
 			categories: categories.map((cat) => ({
 				...cat,

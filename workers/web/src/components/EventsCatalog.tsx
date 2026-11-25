@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Calendar, MapPin, Search, Tag } from 'lucide-preact';
+import { Calendar, MapPin, Search, Tag, Heart } from 'lucide-preact';
 import {
 	ABIDJAN_COMMUNES,
+	ApiError,
 	apiFetch,
 	formatDate,
 	formatXof,
@@ -21,18 +22,52 @@ export default function EventsCatalog() {
 	const [commune, setCommune] = useState('');
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
+	const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+	const [togglingWishlistId, setTogglingWishlistId] = useState<string | null>(null);
 
 	useEffect(() => {
 		const saved = localStorage.getItem('eventrip_commune') || '';
 		setCommune(saved);
-		apiFetch<{ events: PublicEvent[]; event_categories?: EventCategory[] }>('/api/events')
+		apiFetch<{
+			events: PublicEvent[];
+			event_categories?: EventCategory[];
+			wishlist_ids?: string[];
+		}>('/api/events')
 			.then((data) => {
 				setEvents(data.events);
 				setEventCategories(data.event_categories || []);
+				setWishlistIds(new Set(data.wishlist_ids || []));
 			})
 			.catch((err) => setError(err.message))
 			.finally(() => setLoading(false));
 	}, []);
+
+	async function handleToggleWishlist(e: Event, eventId: string) {
+		e.preventDefault();
+		e.stopPropagation();
+		if (togglingWishlistId === eventId) return;
+		const isSaved = wishlistIds.has(eventId);
+		setTogglingWishlistId(eventId);
+		try {
+			await apiFetch(`/api/wishlists/${eventId}`, {
+				method: isSaved ? 'DELETE' : 'POST',
+			});
+			setWishlistIds((prev) => {
+				const next = new Set(prev);
+				if (isSaved) next.delete(eventId);
+				else next.add(eventId);
+				return next;
+			});
+		} catch (err) {
+			if (err instanceof ApiError && err.status === 401) {
+				window.location.href = '/auth?next=/';
+				return;
+			}
+			setError(err instanceof Error ? err.message : 'Impossible de mettre à jour vos favoris');
+		} finally {
+			setTogglingWishlistId(null);
+		}
+	}
 
 	function handleCommuneChange(value: string) {
 		setCommune(value);
@@ -278,6 +313,8 @@ export default function EventsCatalog() {
 									);
 								});
 
+							const isSaved = wishlistIds.has(event.id);
+
 							return (
 								<div key={event.id} class="relative pt-3.5 flex flex-col">
 									{/* Badge catégorie flottant hors-cadre en haut à gauche (2.jpg & guide.md §3) */}
@@ -286,6 +323,21 @@ export default function EventsCatalog() {
 											{event.category_name}
 										</span>
 									)}
+
+									<button
+										type="button"
+										onClick={(e) => handleToggleWishlist(e, event.id)}
+										disabled={togglingWishlistId === event.id}
+										title={isSaved ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+										aria-label={isSaved ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+										class={`absolute top-6 right-3 z-20 flex h-9 w-9 items-center justify-center rounded-full border shadow-sm transition-all cursor-pointer ${
+											isSaved
+												? 'border-red-200 bg-white text-red-500 hover:bg-red-50'
+												: 'border-slate-200/90 bg-white/95 text-slate-600 hover:text-red-500 hover:border-red-200'
+										}`}
+									>
+										<Heart class={`h-4 w-4 ${isSaved ? 'fill-red-500 text-red-500' : ''}`} />
+									</button>
 
 									<a
 										href={`/events/${event.slug}`}

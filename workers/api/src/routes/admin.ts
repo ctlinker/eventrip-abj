@@ -309,6 +309,61 @@ adminRoutes.patch('/events/:id', async (c) => {
 	return c.json({ event });
 });
 
+adminRoutes.delete('/events/:id', async (c) => {
+	const admin = c.get('user');
+	const id = c.req.param('id');
+	const db = getDB(c.env.DB);
+
+	const event = await db
+		.selectFrom('events')
+		.select(['id', 'title', 'poster_key'])
+		.where('id', '=', id)
+		.executeTakeFirst();
+	if (!event) return c.json({ error: 'Événement introuvable' }, 404);
+
+	const [hasTickets, hasReservedConvoy, hasReservedCat] = await Promise.all([
+		db.selectFrom('tickets').select(['id']).where('event_id', '=', id).executeTakeFirst(),
+		db
+			.selectFrom('convoys')
+			.select(['id'])
+			.where('event_id', '=', id)
+			.where('reserved_count', '>', 0)
+			.executeTakeFirst(),
+		db
+			.selectFrom('ticket_categories')
+			.select(['id'])
+			.where('event_id', '=', id)
+			.where('reserved_count', '>', 0)
+			.executeTakeFirst(),
+	]);
+
+	if (hasTickets || hasReservedConvoy || hasReservedCat) {
+		return c.json(
+			{
+				error:
+					'Impossible de supprimer un événement ayant déjà des réservations (archivez-le à la place)',
+			},
+			409,
+		);
+	}
+
+	const posterKeys = parsePosterKeys(event.poster_key);
+	for (const key of posterKeys) {
+		await tryCatch(c.env.UPLOADS.delete(key));
+	}
+
+	await db.deleteFrom('events').where('id', '=', id).execute();
+	await writeAuditLog(db, {
+		actorId: admin.id,
+		action: 'event.delete',
+		entityType: 'event',
+		entityId: id,
+		oldState: { title: event.title },
+	});
+
+	return c.json({ ok: true });
+});
+
 adminRoutes.post('/events/:id/poster', async (c) => {
 	const id = c.req.param('id');
 	const db = getDB(c.env.DB);

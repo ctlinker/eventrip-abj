@@ -91,8 +91,17 @@ export interface PublicEvent {
 	category_name?: string | null;
 	extra_info: string | null;
 	wave_payment_url: string | null;
+	wishlisted?: boolean;
 	categories: TicketCategory[];
 	convoys: Convoy[];
+}
+
+export class ApiError extends Error {
+	status: number;
+	constructor(message: string, status: number) {
+		super(message);
+		this.status = status;
+	}
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -108,7 +117,7 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 	);
 
 	if (!resResult.ok) {
-		throw new Error(getErrorMessage(resResult.error, 'Erreur réseau'));
+		throw new ApiError(getErrorMessage(resResult.error, 'Erreur réseau'), 0);
 	}
 
 	const res = resResult.data;
@@ -116,8 +125,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise
 	const data = jsonResult.ok ? (jsonResult.data as Record<string, unknown>) : {};
 
 	if (!res.ok) {
-		throw new Error(
+		throw new ApiError(
 			(data.error as string) || (data.message as string) || `Erreur ${res.status}`,
+			res.status,
 		);
 	}
 	return data as T;

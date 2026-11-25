@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Plus, ImagePlus, X, Bus, ArrowLeft, Tag } from 'lucide-preact';
+import { Plus, ImagePlus, X, Bus, ArrowLeft, Tag, Archive, Trash2, RotateCcw } from 'lucide-preact';
 import {
 	ABIDJAN_COMMUNES,
 	apiFetch,
@@ -81,6 +81,7 @@ export default function AdminEvents() {
 		capacity: '55',
 	});
 	const [error, setError] = useState<string | null>(null);
+	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
 	function load() {
 		apiFetch<{
@@ -263,13 +264,29 @@ export default function AdminEvents() {
 		}
 	}
 
-	async function toggleStatus(ev: AdminEvent) {
-		const next = ev.status === 'published' ? 'draft' : 'published';
-		await apiFetch(`/api/admin/events/${ev.id}`, {
-			method: 'PATCH',
-			body: JSON.stringify({ status: next }),
-		});
-		setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, status: next } : e)));
+	async function setEventStatus(ev: AdminEvent, next: 'draft' | 'published' | 'archived') {
+		setError(null);
+		try {
+			await apiFetch(`/api/admin/events/${ev.id}`, {
+				method: 'PATCH',
+				body: JSON.stringify({ status: next }),
+			});
+			setEvents((prev) => prev.map((e) => (e.id === ev.id ? { ...e, status: next } : e)));
+		} catch (err: any) {
+			setError(err.message);
+		}
+	}
+
+	async function handleDeleteEvent(ev: AdminEvent) {
+		setError(null);
+		try {
+			await apiFetch(`/api/admin/events/${ev.id}`, { method: 'DELETE' });
+			setEvents((prev) => prev.filter((e) => e.id !== ev.id));
+			setConfirmDeleteId(null);
+		} catch (err: any) {
+			setError(err.message);
+			setConfirmDeleteId(null);
+		}
 	}
 
 	async function handleAddConvoy(e: Event, ev: AdminEvent) {
@@ -959,13 +976,29 @@ export default function AdminEvents() {
 										? `${merchant}?amount=${ev.price_xof}`
 										: `https://pay.wave.com/m/${merchant}/c/ci?amount=${ev.price_xof}`
 									: null;
+							const hasBookings = ev.convoys.some((cv) => cv.reserved_count > 0);
+							const statusLabel =
+								ev.status === 'published'
+									? 'Publié'
+									: ev.status === 'archived'
+										? 'Archivé'
+										: 'Brouillon';
+							const statusCls =
+								ev.status === 'published'
+									? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+									: ev.status === 'archived'
+										? 'bg-amber-50 text-amber-800 border-amber-200'
+										: 'bg-slate-100 text-slate-700 border-slate-200';
 
 							return (
 								<div key={ev.id} class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
-									<div class="flex flex-wrap items-center justify-between gap-3">
+									<div class="flex flex-wrap items-start justify-between gap-3">
 										<div>
 											<div class="flex flex-wrap items-center gap-2.5">
 												<h3 class="text-lg font-extrabold text-slate-950">{ev.title}</h3>
+												<span class={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${statusCls}`}>
+													{statusLabel}
+												</span>
 												{ev.category_name && (
 													<span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-800">
 														{ev.category_name}
@@ -984,17 +1017,81 @@ export default function AdminEvents() {
 												</p>
 											)}
 										</div>
-										<button
-											type="button"
-											onClick={() => toggleStatus(ev)}
-											class={`rounded-xl px-3 py-1.5 text-xs font-bold border cursor-pointer ${
-												ev.status === 'published'
-													? 'bg-emerald-600 text-white border-emerald-600'
-													: 'bg-slate-100 text-slate-700 border-slate-200'
-											}`}
-										>
-											{ev.status === 'published' ? 'Publié' : 'Brouillon'}
-										</button>
+										<div class="flex flex-wrap items-center gap-2">
+											{ev.status === 'archived' ? (
+												<button
+													type="button"
+													onClick={() => setEventStatus(ev, 'published')}
+													class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 cursor-pointer"
+												>
+													<RotateCcw class="h-3.5 w-3.5" />
+													Réactiver
+												</button>
+											) : (
+												<>
+													<button
+														type="button"
+														onClick={() =>
+															setEventStatus(ev, ev.status === 'published' ? 'draft' : 'published')
+														}
+														class={`rounded-xl px-3 py-1.5 text-xs font-bold border cursor-pointer ${
+															ev.status === 'published'
+																? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+																: 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+														}`}
+													>
+														{ev.status === 'published' ? 'Passer brouillon' : 'Publier'}
+													</button>
+													<button
+														type="button"
+														onClick={() => setEventStatus(ev, 'archived')}
+														class="inline-flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 hover:bg-amber-100 cursor-pointer"
+													>
+														<Archive class="h-3.5 w-3.5" />
+														Archiver
+													</button>
+												</>
+											)}
+
+											{confirmDeleteId === ev.id ? (
+												<div class="inline-flex items-center gap-1">
+													<button
+														type="button"
+														onClick={() => handleDeleteEvent(ev)}
+														class="inline-flex items-center gap-1 rounded-xl bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700 cursor-pointer"
+													>
+														Confirmer suppression
+													</button>
+													<button
+														type="button"
+														onClick={() => setConfirmDeleteId(null)}
+														title="Annuler"
+														class="flex h-7 w-7 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:text-slate-900 cursor-pointer"
+													>
+														<X class="h-3.5 w-3.5" />
+													</button>
+												</div>
+											) : (
+												<button
+													type="button"
+													disabled={hasBookings}
+													onClick={() => setConfirmDeleteId(ev.id)}
+													title={
+														hasBookings
+															? 'Suppression impossible : des places ont déjà été réservées'
+															: "Supprimer définitivement l'événement"
+													}
+													class={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-colors ${
+														hasBookings
+															? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+															: 'border-red-200 bg-white text-red-600 hover:bg-red-50 cursor-pointer'
+													}`}
+												>
+													<Trash2 class="h-3.5 w-3.5" />
+													Supprimer
+												</button>
+											)}
+										</div>
 									</div>
 
 									<div class="flex flex-wrap items-center gap-2">
