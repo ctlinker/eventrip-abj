@@ -14,11 +14,15 @@ interface WalletTicket {
 	item_type: 'event_ticket' | 'convoy_ticket';
 	status: 'pending' | 'valid' | 'used' | 'cancelled';
 	used_at: string | null;
+	outbound_used_at?: string | null;
+	return_used_at?: string | null;
 	event_title: string;
 	event_starts_at: string;
 	event_venue: string;
 	category_name: string | null;
 	convoy_name: string | null;
+	convoy_commune?: string | null;
+	convoy_trip_type?: string | null;
 	convoy_departure_at: string | null;
 	convoy_meeting_point: string | null;
 }
@@ -245,6 +249,28 @@ export default function TicketsWallet() {
 									<MapPin class="h-3.5 w-3.5 text-green-600" />
 									{t.convoy_meeting_point || t.event_venue}
 								</p>
+								{t.item_type === 'convoy_ticket' && t.status !== 'pending' && t.status !== 'cancelled' && (
+									<div class="pt-1 flex flex-wrap gap-1.5">
+										<span
+											class={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${
+												t.outbound_used_at
+													? 'bg-slate-100 text-slate-600 border-slate-200'
+													: 'bg-green-50 text-green-700 border-green-200'
+											}`}
+										>
+											Aller : {t.outbound_used_at ? 'Scanné ✓' : 'Disponible'}
+										</span>
+										<span
+											class={`rounded-full px-2 py-0.5 text-[11px] font-semibold border ${
+												t.return_used_at
+													? 'bg-slate-100 text-slate-600 border-slate-200'
+													: 'bg-green-50 text-green-700 border-green-200'
+											}`}
+										>
+											Retour : {t.return_used_at ? 'Scanné ✓' : 'Disponible'}
+										</span>
+									</div>
+								)}
 							</div>
 						</div>
 

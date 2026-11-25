@@ -2,11 +2,28 @@ import { getErrorMessage, tryCatch } from 'utils';
 
 export const API_BASE = '';
 
+export const ABIDJAN_COMMUNES = [
+	'Abobo',
+	'Adjamé',
+	'Anyama',
+	'Attécoubé',
+	'Bingerville',
+	'Cocody',
+	'Koumassi',
+	'Marcory',
+	'Plateau',
+	'Port-Bouët',
+	'Songon',
+	'Treichville',
+	'Yopougon',
+] as const;
+
 export interface ApiUser {
 	id: string;
 	name: string;
 	email: string;
 	phone?: string | null;
+	commune?: string | null;
 	role: 'client' | 'admin' | 'super_admin';
 	permissions: string;
 	is_active: number;
@@ -27,6 +44,7 @@ export interface Convoy {
 	id: string;
 	event_id: string;
 	name: string;
+	commune: string;
 	departure_at: string;
 	meeting_point: string;
 	destination: string;
@@ -36,6 +54,20 @@ export interface Convoy {
 	reserved_count: number;
 	remaining: number;
 	extra_info: string | null;
+}
+
+export function sortConvoysByCommune(
+	convoys: Convoy[],
+	preferredCommune?: string | null,
+): Convoy[] {
+	const pref = preferredCommune?.trim().toLowerCase() || '';
+	return [...convoys].sort((a, b) => {
+		const aMatch = pref && (a.commune || '').toLowerCase() === pref ? 1 : 0;
+		const bMatch = pref && (b.commune || '').toLowerCase() === pref ? 1 : 0;
+		if (aMatch !== bMatch) return bMatch - aMatch;
+		if (b.remaining !== a.remaining) return b.remaining - a.remaining;
+		return (a.commune || a.name).localeCompare(b.commune || b.name, 'fr');
+	});
 }
 
 export interface PublicEvent {

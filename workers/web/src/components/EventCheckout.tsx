@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Calendar, MapPin, Bus, Ticket, Minus, Plus, ShoppingBag } from 'lucide-preact';
-import { apiFetch, formatDate, formatXof, getEventPosterUrls, type PublicEvent } from '../lib/api';
+import {
+	apiFetch,
+	formatDate,
+	formatXof,
+	getEventPosterUrls,
+	sortConvoysByCommune,
+	type PublicEvent,
+} from '../lib/api';
 import EventImageCarousel from './EventImageCarousel';
 
 interface Props {
@@ -13,9 +20,11 @@ export default function EventCheckout({ slug }: Props) {
 	const [error, setError] = useState<string | null>(null);
 	const [catQty, setCatQty] = useState<Record<string, number>>({});
 	const [convQty, setConvQty] = useState<Record<string, number>>({});
+	const [preferredCommune, setPreferredCommune] = useState('');
 	const [submitting, setSubmitting] = useState(false);
 
 	useEffect(() => {
+		setPreferredCommune(localStorage.getItem('eventrip_commune') || '');
 		apiFetch<{ event: PublicEvent }>(`/api/events/${slug}`)
 			.then((data) => setEvent(data.event))
 			.catch((err) => setError(err.message))
@@ -164,15 +173,24 @@ export default function EventCheckout({ slug }: Props) {
 							Convois de transport associés
 						</h2>
 						<div class="mt-4 divide-y divide-green-50">
-							{event.convoys.map((cv) => {
+							{sortConvoysByCommune(event.convoys, preferredCommune).map((cv) => {
 								const qty = convQty[cv.id] || 0;
+								const isMatch =
+									Boolean(preferredCommune) &&
+									(cv.commune || '').toLowerCase() === preferredCommune.toLowerCase();
 								return (
 									<div key={cv.id} class="py-4 flex items-center justify-between gap-4">
 										<div>
 											<p class="font-semibold text-slate-900">
+												{cv.commune ? `${cv.commune} — ` : ''}
 												{cv.name}{' '}
+												{isMatch && (
+													<span class="ml-1 rounded-full bg-green-600 px-2 py-0.5 text-xs text-white">
+														Votre commune
+													</span>
+												)}
 												<span class="ml-1 rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700 border border-green-200">
-													{cv.trip_type === 'round_trip' ? 'Aller-retour' : 'Aller simple'}
+													{cv.trip_type === 'round_trip' ? 'Aller-retour (2 scans)' : 'Aller simple'}
 												</span>
 											</p>
 											<p class="text-sm text-slate-600">

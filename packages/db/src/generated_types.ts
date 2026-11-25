@@ -39,6 +39,7 @@ export interface AuditLogs {
 
 export interface Convoys {
   capacity: number;
+  commune: Generated<string>;
   created_at: string;
   departure_at: string;
   destination: string;
@@ -156,7 +157,11 @@ export interface Tickets {
   item_type: string;
   order_id: string;
   order_item_id: string;
+  outbound_scanned_by: string | null;
+  outbound_used_at: string | null;
   qr_token: string;
+  return_scanned_by: string | null;
+  return_used_at: string | null;
   scanned_by: string | null;
   status: Generated<string>;
   ticket_category_id: string | null;
@@ -166,6 +171,7 @@ export interface Tickets {
 }
 
 export interface User {
+  commune: string | null;
   createdAt: string;
   email: string;
   emailVerified: number;

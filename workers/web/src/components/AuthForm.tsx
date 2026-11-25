@@ -1,11 +1,12 @@
 import { useState } from 'preact/hooks';
-import { apiFetch } from '../lib/api';
+import { ABIDJAN_COMMUNES, apiFetch } from '../lib/api';
 
 export default function AuthForm() {
 	const [mode, setMode] = useState<'login' | 'register'>('login');
 	const [name, setName] = useState('');
 	const [email, setEmail] = useState('');
 	const [phone, setPhone] = useState('');
+	const [commune, setCommune] = useState('');
 	const [password, setPassword] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -29,8 +30,12 @@ export default function AuthForm() {
 						email,
 						password,
 						phone: phone.trim() || undefined,
+						commune: commune || undefined,
 					}),
 				});
+				if (commune) {
+					localStorage.setItem('eventrip_commune', commune);
+				}
 			}
 			const params = new URLSearchParams(window.location.search);
 			const next = params.get('next');
@@ -96,6 +101,23 @@ export default function AuthForm() {
 								placeholder="+225 07 00 00 00 00"
 								class="w-full rounded-xl border border-green-200 px-3.5 py-2.5 text-sm focus:border-green-600 focus:outline-none"
 							/>
+						</div>
+						<div>
+							<label class="block text-sm font-medium text-slate-700 mb-1">
+								Commune de départ préférée (optionnel)
+							</label>
+							<select
+								value={commune}
+								onChange={(e) => setCommune((e.target as HTMLSelectElement).value)}
+								class="w-full rounded-xl border border-green-200 bg-white px-3.5 py-2.5 text-sm focus:border-green-600 focus:outline-none"
+							>
+								<option value="">Sélectionner une commune...</option>
+								{ABIDJAN_COMMUNES.map((c) => (
+									<option key={c} value={c}>
+										{c}
+									</option>
+								))}
+							</select>
 						</div>
 					</>
 				)}

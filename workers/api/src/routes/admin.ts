@@ -280,25 +280,45 @@ adminRoutes.post('/events/:id/categories', async (c) => {
 
 adminRoutes.post('/events/:id/convoys', async (c) => {
 	const eventId = c.req.param('id');
-	const body = await c.req.json<{
-		name?: string;
-		departure_at?: string;
-		meeting_point?: string;
-		destination?: string;
-		trip_type?: 'one_way' | 'round_trip';
-		price_xof?: number;
-		capacity?: number;
-		extra_info?: string | null;
-	}>();
+	const body = await c.req
+		.json<{
+			name?: string;
+			commune?: string;
+			departure_at?: string;
+			meeting_point?: string;
+			destination?: string;
+			trip_type?: 'one_way' | 'round_trip';
+			price_xof?: number;
+			capacity?: number;
+			extra_info?: string | null;
+		}>()
+		.catch(
+			(): {
+				name?: string;
+				commune?: string;
+				departure_at?: string;
+				meeting_point?: string;
+				destination?: string;
+				trip_type?: 'one_way' | 'round_trip';
+				price_xof?: number;
+				capacity?: number;
+				extra_info?: string | null;
+			} => ({}),
+		);
+
+	const tripType = body.trip_type ?? 'round_trip';
+	const capacity =
+		Number.isInteger(body.capacity) && (body.capacity as number) > 0 ? body.capacity! : 55;
+	const commune = (body.commune || body.meeting_point || body.name || '').trim();
 
 	if (
 		!body.name ||
+		!commune ||
 		!body.departure_at ||
 		!body.meeting_point ||
 		!body.destination ||
-		(body.trip_type !== 'one_way' && body.trip_type !== 'round_trip') ||
-		!Number.isInteger(body.price_xof) ||
-		!Number.isInteger(body.capacity)
+		(tripType !== 'one_way' && tripType !== 'round_trip') ||
+		!Number.isInteger(body.price_xof)
 	) {
 		return c.json({ error: 'Paramètres de convoi invalides' }, 400);
 	}
@@ -313,12 +333,13 @@ adminRoutes.post('/events/:id/convoys', async (c) => {
 			id,
 			event_id: eventId,
 			name: body.name.trim(),
+			commune,
 			departure_at: body.departure_at,
 			meeting_point: body.meeting_point.trim(),
 			destination: body.destination.trim(),
-			trip_type: body.trip_type,
+			trip_type: tripType,
 			price_xof: body.price_xof!,
-			capacity: body.capacity!,
+			capacity,
 			reserved_count: 0,
 			extra_info: body.extra_info ?? null,
 			status: 'published',
@@ -579,52 +600,93 @@ adminRoutes.post('/payments/:id/reject', requirePermission('payments:verify'), a
 adminRoutes.post('/tickets/scan', async (c) => {
 	const admin = c.get('user');
 	const body = await c.req
-		.json<{ qr_token?: string }>()
-		.catch((): { qr_token?: string } => ({}));
+		.json<{ qr_token?: string; direction?: 'outbound' | 'return' }>()
+		.catch((): { qr_token?: string; direction?: 'outbound' | 'return' } => ({}));
 	const qrToken = body.qr_token?.trim();
+	const direction = body.direction === 'return' ? 'return' : 'outbound';
 
 	if (!qrToken) {
 		return c.json({ error: 'qr_token requis' }, 400);
 	}
 
 	const now = nowIso();
-	const updated = await c.env.DB.prepare(
-		"UPDATE tickets SET status = 'used', used_at = ?, scanned_by = ?, updated_at = ? WHERE qr_token = ? AND status = 'valid' RETURNING id, code, event_id, item_type, ticket_category_id, convoy_id, user_id, used_at",
-	)
-		.bind(now, admin.id, now, qrToken)
-		.first<{
-			id: string;
-			code: string;
-			event_id: string;
-			item_type: string;
-			ticket_category_id: string | null;
-			convoy_id: string | null;
-			user_id: string;
-			used_at: string;
-		}>();
+	type ScannedTicket = {
+		id: string;
+		code: string;
+		event_id: string;
+		item_type: string;
+		ticket_category_id: string | null;
+		convoy_id: string | null;
+		user_id: string;
+		status: string;
+		used_at: string | null;
+		outbound_used_at: string | null;
+		return_used_at: string | null;
+	};
+
+	const updated =
+		direction === 'outbound'
+			? await c.env.DB.prepare(
+					`UPDATE tickets
+           SET outbound_used_at = ?,
+               outbound_scanned_by = ?,
+               used_at = COALESCE(used_at, ?),
+               scanned_by = COALESCE(scanned_by, ?),
+               status = CASE WHEN item_type = 'event_ticket' OR return_used_at IS NOT NULL THEN 'used' ELSE 'valid' END,
+               updated_at = ?
+           WHERE qr_token = ? AND status = 'valid' AND outbound_used_at IS NULL
+           RETURNING id, code, event_id, item_type, ticket_category_id, convoy_id, user_id, status, used_at, outbound_used_at, return_used_at`,
+				)
+					.bind(now, admin.id, now, admin.id, now, qrToken)
+					.first<ScannedTicket>()
+			: await c.env.DB.prepare(
+					`UPDATE tickets
+           SET return_used_at = ?,
+               return_scanned_by = ?,
+               used_at = ?,
+               scanned_by = ?,
+               status = CASE WHEN outbound_used_at IS NOT NULL THEN 'used' ELSE 'valid' END,
+               updated_at = ?
+           WHERE qr_token = ? AND item_type = 'convoy_ticket' AND status = 'valid' AND return_used_at IS NULL
+           RETURNING id, code, event_id, item_type, ticket_category_id, convoy_id, user_id, status, used_at, outbound_used_at, return_used_at`,
+				)
+					.bind(now, admin.id, now, admin.id, now, qrToken)
+					.first<ScannedTicket>();
 
 	const db = getDB(c.env.DB);
 
 	if (updated) {
 		await writeAuditLog(db, {
 			actorId: admin.id,
-			action: 'ticket.scan',
+			action: `ticket.scan.${direction}`,
 			entityType: 'ticket',
 			entityId: updated.id,
 			oldState: { status: 'valid' },
-			newState: { status: 'used', used_at: updated.used_at },
+			newState: {
+				status: updated.status,
+				outbound_used_at: updated.outbound_used_at,
+				return_used_at: updated.return_used_at,
+			},
 		});
+
+		const message =
+			updated.item_type === 'event_ticket'
+				? 'Ticket valide — accès autorisé'
+				: direction === 'outbound'
+					? 'Aller validé (1/2)'
+					: 'Retour validé (2/2)';
 
 		return c.json({
 			result: 'valid',
-			message: 'Ticket valide — accès autorisé',
+			direction,
+			message,
 			ticket: updated,
 		});
 	}
 
 	const existing = await db
 		.selectFrom('tickets')
-		.select(['id', 'code', 'status', 'used_at'])
+		.select(['id', 'code', 'item_type', 'status', 'used_at', 'outbound_used_at', 'return_used_at'])
 		.where('qr_token', '=', qrToken)
 		.executeTakeFirst();
 
@@ -634,10 +696,25 @@ adminRoutes.post('/tickets/scan', async (c) => {
 	if (existing.status === 'pending') {
 		return c.json({ result: 'pending', message: 'Paiement non confirmé', ticket: existing }, 409);
 	}
+	if (direction === 'return' && existing.item_type !== 'convoy_ticket') {
+		return c.json(
+			{
+				result: 'invalid',
+				message: 'Ce billet est un ticket événement (scan unique en mode Aller)',
+				ticket: existing,
+			},
+			409,
+		);
+	}
 	return c.json(
 		{
 			result: 'already_used',
-			message: 'Ticket déjà utilisé',
+			message:
+				existing.item_type === 'convoy_ticket'
+					? direction === 'outbound'
+						? 'Trajet Aller déjà scanné'
+						: 'Trajet Retour déjà scanné'
+					: 'Ticket déjà utilisé',
 			ticket: existing,
 		},
 		409,

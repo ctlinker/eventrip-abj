@@ -11,6 +11,10 @@ export const rawBetterAuthConfig = {
 				type: 'string' as const,
 				required: false,
 			},
+			commune: {
+				type: 'string' as const,
+				required: false,
+			},
 			role: {
 				type: 'string' as const,
 				required: false,

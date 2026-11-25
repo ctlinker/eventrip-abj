@@ -10,17 +10,18 @@ interface ScanResponse {
 
 export default function AdminScanner() {
 	const [token, setToken] = useState('');
+	const [direction, setDirection] = useState<'outbound' | 'return'>('outbound');
 	const [scanResult, setScanResult] = useState<ScanResponse | null>(null);
 	const [cameraActive, setCameraActive] = useState(false);
 	const videoRef = useRef<HTMLVideoElement>(null);
 
-	async function verifyToken(qrToken: string) {
+	async function verifyToken(qrToken: string, dir = direction) {
 		const trimmed = qrToken.trim();
 		if (!trimmed) return;
 		try {
 			const res = await apiFetch<ScanResponse>('/api/admin/tickets/scan', {
 				method: 'POST',
-				body: JSON.stringify({ qr_token: trimmed }),
+				body: JSON.stringify({ qr_token: trimmed, direction: dir }),
 			});
 			setScanResult(res);
 		} catch (err: any) {
@@ -91,6 +92,31 @@ export default function AdminScanner() {
 					>
 						<Camera class="h-4 w-4" />
 						{cameraActive ? 'Arrêter caméra' : 'Activer caméra'}
+					</button>
+				</div>
+
+				<div class="grid grid-cols-2 gap-2 rounded-xl bg-green-50 p-1">
+					<button
+						type="button"
+						onClick={() => setDirection('outbound')}
+						class={`rounded-lg py-2 text-xs font-semibold transition-colors cursor-pointer ${
+							direction === 'outbound'
+								? 'bg-green-600 text-white shadow-xs'
+								: 'text-slate-700 hover:bg-green-100/60'
+						}`}
+					>
+						Contrôle Aller / Entrée
+					</button>
+					<button
+						type="button"
+						onClick={() => setDirection('return')}
+						class={`rounded-lg py-2 text-xs font-semibold transition-colors cursor-pointer ${
+							direction === 'return'
+								? 'bg-green-600 text-white shadow-xs'
+								: 'text-slate-700 hover:bg-green-100/60'
+						}`}
+					>
+						Contrôle Retour (Convoi)
 					</button>
 				</div>
 

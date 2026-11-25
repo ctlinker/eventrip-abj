@@ -2,6 +2,7 @@ import { env, SELF } from 'cloudflare:test';
 import { beforeAll, describe, it, expect } from 'vitest';
 import migration001 from '../../../packages/db/migrations/001_better-auth.sql?raw';
 import migration002 from '../../../packages/db/migrations/002_domain.sql?raw';
+import migration003 from '../../../packages/db/migrations/003_communes_roundtrip.sql?raw';
 import { expirePendingOrders } from '../src/services/orders';
 import { maybeBootstrapSuperAdmin } from '../src/lib/bootstrap';
 
@@ -50,6 +51,7 @@ describe('Eventrip API Core', () => {
 	beforeAll(async () => {
 		await applySql(migration001);
 		await applySql(migration002);
+		await applySql(migration003);
 
 		const client = await signUpAndGetCookie('Kouame Client', 'client@eventrip.ci', '+2250700000001');
 		clientCookie = client.cookie;
@@ -99,17 +101,20 @@ describe('Eventrip API Core', () => {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
 			body: JSON.stringify({
-				name: 'Car Plateau -> Assinie',
+				name: 'Départ Cocody -> Assinie',
+				commune: 'Cocody',
 				departure_at: '2026-12-20T14:00:00Z',
-				meeting_point: 'Plateau Gare Lagunaire',
+				meeting_point: 'Angré 8e Tranche',
 				destination: 'Assinie-Mafia',
 				trip_type: 'round_trip',
 				price_xof: 5000,
-				capacity: 2,
 			}),
 		});
 		expect(convRes.status).toBe(201);
-		convoyId = ((await convRes.json()) as { convoy: { id: string } }).convoy.id;
+		const createdConvoy = (await convRes.json()) as { convoy: { id: string; capacity: number; commune: string } };
+		expect(createdConvoy.convoy.capacity).toBe(55);
+		expect(createdConvoy.convoy.commune).toBe('Cocody');
+		convoyId = createdConvoy.convoy.id;
 	});
 
 	it('responds on /api/health and lists published events', async () => {
@@ -225,15 +230,15 @@ describe('Eventrip API Core', () => {
 			headers: { Cookie: clientCookie },
 		});
 		const validTickets = (await validTicketsRes.json()) as {
-			tickets: Array<{ status: string; qr_token: string | null }>;
+			tickets: Array<{ item_type: string; status: string; qr_token: string | null }>;
 		};
 		expect(validTickets.tickets.every((t) => t.status === 'valid' && Boolean(t.qr_token))).toBe(true);
 
-		const qrToken = validTickets.tickets[0].qr_token!;
+		const eventTicketToken = validTickets.tickets.find((t) => t.item_type === 'event_ticket')!.qr_token!;
 		const firstScan = await SELF.fetch('https://example.com/api/admin/tickets/scan', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', Cookie: adminNoPermCookie },
-			body: JSON.stringify({ qr_token: qrToken }),
+			body: JSON.stringify({ qr_token: eventTicketToken }),
 		});
 		expect(firstScan.status).toBe(200);
 		expect(((await firstScan.json()) as { result: string }).result).toBe('valid');
@@ -241,10 +246,40 @@ describe('Eventrip API Core', () => {
 		const secondScan = await SELF.fetch('https://example.com/api/admin/tickets/scan', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', Cookie: adminNoPermCookie },
-			body: JSON.stringify({ qr_token: qrToken }),
+			body: JSON.stringify({ qr_token: eventTicketToken }),
 		});
 		expect(secondScan.status).toBe(409);
 		expect(((await secondScan.json()) as { result: string }).result).toBe('already_used');
+
+		// Double scan Aller + Retour sur billet de convoi
+		const convoyToken = validTickets.tickets.find((t) => t.item_type === 'convoy_ticket')!.qr_token!;
+		const outboundScan = await SELF.fetch('https://example.com/api/admin/tickets/scan', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminNoPermCookie },
+			body: JSON.stringify({ qr_token: convoyToken, direction: 'outbound' }),
+		});
+		expect(outboundScan.status).toBe(200);
+
+		const dupOutbound = await SELF.fetch('https://example.com/api/admin/tickets/scan', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminNoPermCookie },
+			body: JSON.stringify({ qr_token: convoyToken, direction: 'outbound' }),
+		});
+		expect(dupOutbound.status).toBe(409);
+
+		const returnScan = await SELF.fetch('https://example.com/api/admin/tickets/scan', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminNoPermCookie },
+			body: JSON.stringify({ qr_token: convoyToken, direction: 'return' }),
+		});
+		expect(returnScan.status).toBe(200);
+
+		const dupReturn = await SELF.fetch('https://example.com/api/admin/tickets/scan', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminNoPermCookie },
+			body: JSON.stringify({ qr_token: convoyToken, direction: 'return' }),
+		});
+		expect(dupReturn.status).toBe(409);
 
 		// 8. Expiration automatique (2h) + restitution de place + unicité wave_transaction_ref
 		const expOrderRes = await SELF.fetch('https://example.com/api/orders', {

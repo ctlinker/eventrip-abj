@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Plus, ImagePlus, X } from 'lucide-preact';
-import { apiFetch, formatDate, formatXof, getEventPosterUrls } from '../../lib/api';
+import { Plus, ImagePlus, X, Bus } from 'lucide-preact';
+import {
+	ABIDJAN_COMMUNES,
+	apiFetch,
+	formatDate,
+	formatXof,
+	getEventPosterUrls,
+} from '../../lib/api';
 
 interface AdminEvent {
 	id: string;
@@ -13,7 +19,15 @@ interface AdminEvent {
 	poster_keys?: string[];
 	status: 'draft' | 'published' | 'archived';
 	categories: Array<{ id: string; name: string; price_xof: number; capacity: number; reserved_count: number }>;
-	convoys: Array<{ id: string; name: string; price_xof: number; capacity: number; reserved_count: number }>;
+	convoys: Array<{
+		id: string;
+		name: string;
+		commune?: string;
+		meeting_point?: string;
+		price_xof: number;
+		capacity: number;
+		reserved_count: number;
+	}>;
 }
 
 export default function AdminEvents() {
@@ -33,6 +47,21 @@ export default function AdminEvents() {
 		name: '',
 		price: '',
 		capacity: '',
+	});
+	const [convoyForm, setConvoyForm] = useState<{
+		eventId: string;
+		commune: string;
+		meetingPoint: string;
+		departureAt: string;
+		price: string;
+		capacity: string;
+	}>({
+		eventId: '',
+		commune: 'Cocody',
+		meetingPoint: '',
+		departureAt: '2026-12-20T14:00',
+		price: '',
+		capacity: '55',
 	});
 	const [error, setError] = useState<string | null>(null);
 
@@ -154,6 +183,46 @@ export default function AdminEvents() {
 				setEvents((prev) =>
 					prev.map((ev) =>
 						ev.id === eventId ? { ...ev, categories: [...ev.categories, res.category] } : ev,
+					),
+				);
+			}
+		} catch (err: any) {
+			setError(err.message);
+		}
+	}
+
+	async function handleAddConvoy(e: Event, ev: AdminEvent) {
+		e.preventDefault();
+		setError(null);
+		try {
+			const res = await apiFetch<{ convoy: AdminEvent['convoys'][number] }>(
+				`/api/admin/events/${ev.id}/convoys`,
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						name: `Départ ${convoyForm.commune}`,
+						commune: convoyForm.commune,
+						meeting_point: convoyForm.meetingPoint,
+						destination: ev.venue,
+						departure_at: new Date(convoyForm.departureAt).toISOString(),
+						trip_type: 'round_trip',
+						price_xof: Number(convoyForm.price),
+						capacity: Number(convoyForm.capacity) || 55,
+					}),
+				},
+			);
+			setConvoyForm({
+				eventId: '',
+				commune: 'Cocody',
+				meetingPoint: '',
+				departureAt: '2026-12-20T14:00',
+				price: '',
+				capacity: '55',
+			});
+			if (res.convoy) {
+				setEvents((prev) =>
+					prev.map((item) =>
+						item.id === ev.id ? { ...item, convoys: [...item.convoys, res.convoy] } : item,
 					),
 				);
 			}
@@ -392,7 +461,47 @@ export default function AdminEvents() {
 										? `${merchant}?amount=${c.price_xof}`
 										: `https://pay.wave.com/m/${merchant}/c/ci?amount=${c.price_xof}`
 									: null;
-								async function handleUploadMorePhotos(eventId: string, files: FileList | null) {
+								async function handleAddConvoy(e: Event, ev: AdminEvent) {
+		e.preventDefault();
+		setError(null);
+		try {
+			const res = await apiFetch<{ convoy: AdminEvent['convoys'][number] }>(
+				`/api/admin/events/${ev.id}/convoys`,
+				{
+					method: 'POST',
+					body: JSON.stringify({
+						name: `Départ ${convoyForm.commune}`,
+						commune: convoyForm.commune,
+						meeting_point: convoyForm.meetingPoint,
+						destination: ev.venue,
+						departure_at: new Date(convoyForm.departureAt).toISOString(),
+						trip_type: 'round_trip',
+						price_xof: Number(convoyForm.price),
+						capacity: Number(convoyForm.capacity) || 55,
+					}),
+				},
+			);
+			setConvoyForm({
+				eventId: '',
+				commune: 'Cocody',
+				meetingPoint: '',
+				departureAt: '2026-12-20T14:00',
+				price: '',
+				capacity: '55',
+			});
+			if (res.convoy) {
+				setEvents((prev) =>
+					prev.map((item) =>
+						item.id === ev.id ? { ...item, convoys: [...item.convoys, res.convoy] } : item,
+					),
+				);
+			}
+		} catch (err: any) {
+			setError(err.message);
+		}
+	}
+
+	async function handleUploadMorePhotos(eventId: string, files: FileList | null) {
 		if (!files || files.length === 0) return;
 		setError(null);
 		const form = new FormData();
@@ -479,13 +588,123 @@ export default function AdminEvents() {
 								</button>
 							</form>
 						) : (
-							<button
-								type="button"
-								onClick={() => setCatForm({ eventId: ev.id, name: '', price: '', capacity: '' })}
-								class="inline-flex items-center gap-1 rounded-xl border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 cursor-pointer"
-							>
-								+ Ajouter une catégorie de tickets
-							</button>
+							<div class="flex flex-wrap gap-2">
+								<button
+									type="button"
+									onClick={() => setCatForm({ eventId: ev.id, name: '', price: '', capacity: '' })}
+									class="inline-flex items-center gap-1 rounded-xl border border-green-200 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-100 cursor-pointer"
+								>
+									+ Ajouter une catégorie de tickets
+								</button>
+								<button
+									type="button"
+									onClick={() =>
+										setConvoyForm({
+											eventId: ev.id,
+											commune: 'Cocody',
+											meetingPoint: '',
+											departureAt: ev.starts_at.slice(0, 16),
+											price: '',
+											capacity: '55',
+										})
+									}
+									class="inline-flex items-center gap-1 rounded-xl border border-green-200 bg-white px-3 py-1.5 text-xs font-semibold text-green-700 hover:bg-green-50 cursor-pointer"
+								>
+									<Bus class="h-3.5 w-3.5" />
+									+ Ajouter un départ (commune · 55 pl.)
+								</button>
+							</div>
+						)}
+
+						{ev.convoys.length > 0 && (
+							<div class="text-xs text-slate-700 space-y-1 pt-2 border-t border-green-50">
+								<p class="font-semibold text-slate-600">Départs par commune :</p>
+								{ev.convoys.map((cv) => (
+									<div key={cv.id} class="flex justify-between rounded-lg bg-green-50/40 px-3 py-1.5">
+										<span>
+											{cv.commune || cv.name} {cv.meeting_point ? `· ${cv.meeting_point}` : ''}
+										</span>
+										<span class="font-semibold">
+											{formatXof(cv.price_xof)} · {cv.reserved_count}/{cv.capacity} places
+										</span>
+									</div>
+								))}
+							</div>
+						)}
+
+						{convoyForm.eventId === ev.id && (
+							<form onSubmit={(e) => handleAddConvoy(e, ev)} class="grid gap-2 sm:grid-cols-5 pt-2">
+								<select
+									value={convoyForm.commune}
+									onChange={(e) =>
+										setConvoyForm({ ...convoyForm, commune: (e.target as HTMLSelectElement).value })
+									}
+									class="rounded-xl border border-green-200 bg-white px-3 py-1.5 text-sm"
+								>
+									{ABIDJAN_COMMUNES.map((c) => (
+										<option key={c} value={c}>
+											{c}
+										</option>
+									))}
+								</select>
+								<input
+									type="text"
+									required
+									placeholder="Point de rassemblement"
+									value={convoyForm.meetingPoint}
+									onInput={(e) =>
+										setConvoyForm({
+											...convoyForm,
+											meetingPoint: (e.target as HTMLInputElement).value,
+										})
+									}
+									class="rounded-xl border border-green-200 px-3 py-1.5 text-sm"
+								/>
+								<input
+									type="datetime-local"
+									required
+									value={convoyForm.departureAt}
+									onInput={(e) =>
+										setConvoyForm({
+											...convoyForm,
+											departureAt: (e.target as HTMLInputElement).value,
+										})
+									}
+									class="rounded-xl border border-green-200 px-3 py-1.5 text-sm"
+								/>
+								<input
+									type="number"
+									required
+									placeholder="Prix FCFA"
+									value={convoyForm.price}
+									onInput={(e) =>
+										setConvoyForm({ ...convoyForm, price: (e.target as HTMLInputElement).value })
+									}
+									class="rounded-xl border border-green-200 px-3 py-1.5 text-sm"
+								/>
+								<div class="flex gap-2">
+									<input
+										type="number"
+										required
+										min={1}
+										placeholder="Places"
+										value={convoyForm.capacity}
+										onInput={(e) =>
+											setConvoyForm({
+												...convoyForm,
+												capacity: (e.target as HTMLInputElement).value,
+											})
+										}
+										class="w-20 rounded-xl border border-green-200 px-3 py-1.5 text-sm"
+									/>
+									<button
+										type="submit"
+										class="flex-1 rounded-xl bg-green-600 px-3 py-1.5 text-sm font-semibold text-white cursor-pointer"
+									>
+										OK
+									</button>
+								</div>
+							</form>
 						)}
 					</div>
 				))}

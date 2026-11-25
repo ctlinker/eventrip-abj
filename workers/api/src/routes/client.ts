@@ -18,11 +18,13 @@ clientRoutes.use('*', requireAuth);
 
 clientRoutes.patch('/me', async (c) => {
 	const user = c.get('user');
-	const parsed = await tryCatch(c.req.json<{ name?: string; phone?: string | null }>());
+	const parsed = await tryCatch(
+		c.req.json<{ name?: string; phone?: string | null; commune?: string | null }>(),
+	);
 	const body = parsed.ok ? parsed.data : {};
 	const db = getDB(c.env.DB);
 
-	const updates: { name?: string; phone?: string | null; updatedAt: string } = {
+	const updates: { name?: string; phone?: string | null; commune?: string | null; updatedAt: string } = {
 		updatedAt: nowIso(),
 	};
 
@@ -32,6 +34,10 @@ clientRoutes.patch('/me', async (c) => {
 	if (body.phone !== undefined) {
 		const trimmed = typeof body.phone === 'string' ? body.phone.trim() : null;
 		updates.phone = trimmed && trimmed.length > 0 ? trimmed : null;
+	}
+	if (body.commune !== undefined) {
+		const trimmed = typeof body.commune === 'string' ? body.commune.trim() : null;
+		updates.commune = trimmed && trimmed.length > 0 ? trimmed : null;
 	}
 
 	const updateRes = await tryCatch(
@@ -46,7 +52,7 @@ clientRoutes.patch('/me', async (c) => {
 
 	const updated = await db
 		.selectFrom('user')
-		.select(['id', 'name', 'email', 'phone', 'role', 'permissions', 'is_active'])
+		.select(['id', 'name', 'email', 'phone', 'commune', 'role', 'permissions', 'is_active'])
 		.where('id', '=', user.id)
 		.executeTakeFirst();
 	return c.json({ user: updated });
@@ -554,6 +560,8 @@ clientRoutes.get('/tickets', async (c) => {
 			't.item_type',
 			't.status',
 			't.used_at',
+			't.outbound_used_at',
+			't.return_used_at',
 			't.created_at',
 			'o.reference as order_reference',
 			'oi.unit_price_xof as price_xof',
@@ -563,6 +571,8 @@ clientRoutes.get('/tickets', async (c) => {
 			'e.venue as event_venue',
 			'tc.name as category_name',
 			'cv.name as convoy_name',
+			'cv.commune as convoy_commune',
+			'cv.trip_type as convoy_trip_type',
 			'cv.departure_at as convoy_departure_at',
 			'cv.meeting_point as convoy_meeting_point',
 		])
