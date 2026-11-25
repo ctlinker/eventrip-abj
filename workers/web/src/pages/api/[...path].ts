@@ -1,10 +1,9 @@
 import type { APIRoute } from 'astro';
+import { env } from 'cloudflare:workers';
 import { tryCatch } from 'utils';
-import { env } from "cloudflare:workers"
 
-export const ALL: APIRoute = async ({ request, locals }) => {
-	const runtime = (locals as { runtime?: { env?: Env } }).runtime;
-	const api = env.API;
+export const ALL: APIRoute = async ({ request }) => {
+	const api = (env as Env).API;
 
 	if (!api) {
 		return new Response(JSON.stringify({ error: 'Service binding API indisponible' }), {

@@ -18,6 +18,11 @@ Application web de billetterie événementielle et de gestion de convois de tran
 * `workers/api` : API REST Hono (`src/index.ts`), middlewares d'authentification/permissions (`src/middleware/auth.ts`), stockage R2 (`UPLOADS`) et Cron Trigger (`*/5 * * * *`).
 * `workers/web` : Frontend Astro SSR + îlots Preact + Tailwind CSS v4 déployé sur `@astrojs/cloudflare`.
 
+## Conventions Cloudflare Workers
+
+* **Communication inter-services** : Toujours utiliser un **Service Binding** (ex. `API` dans `workers/web/wrangler.jsonc` via `/api/[...path].ts`) plutôt qu'une URL publique en variable d'environnement.
+* **Accès aux bindings & variables Cloudflare** : Dans tout Worker (y compris Astro SSR), importer les variables et bindings via `import { env } from "cloudflare:workers"` plutôt que `locals.runtime.env`.
+
 ## Gestion des erreurs (`packages/utils`)
 
 * Pour toute opération susceptible d'échouer (appels D1, uploads R2, `fetch`, parsing JSON/multipart), utiliser `tryCatch` / `tryCatchSync` de `utils` au lieu de blocs `try/catch` ad hoc ou de `.catch(() => ({}))`.
