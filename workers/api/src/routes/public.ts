@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { getDB } from 'db';
+import { parsePosterKeys } from '../lib/utils';
 import type { AppEnv } from '../types';
 
 export const publicRoutes = new Hono<AppEnv>();
@@ -36,6 +37,7 @@ publicRoutes.get('/events', async (c) => {
 
 	const result = events.map((event) => ({
 		...event,
+		poster_keys: parsePosterKeys(event.poster_key),
 		categories: categories
 			.filter((cat) => cat.event_id === event.id)
 			.map((cat) => ({
@@ -87,6 +89,7 @@ publicRoutes.get('/events/:slug', async (c) => {
 	return c.json({
 		event: {
 			...event,
+			poster_keys: parsePosterKeys(event.poster_key),
 			categories: categories.map((cat) => ({
 				...cat,
 				remaining: Math.max(0, cat.capacity - cat.reserved_count),

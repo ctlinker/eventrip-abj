@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { getDB } from 'db';
 import { isUniqueConstraintError, tryCatch } from 'utils';
 import { requireAdmin, requireAuth, requirePermission } from '../middleware/auth';
-import { createNotification, nowIso, slugify, writeAuditLog } from '../lib/utils';
+import { createNotification, nowIso, parsePosterKeys, slugify, writeAuditLog } from '../lib/utils';
 import { releaseOrderReservations } from '../services/orders';
 import type { AppEnv } from '../types';
 
@@ -54,6 +54,7 @@ adminRoutes.get('/events', async (c) => {
 		default_wave_merchant_id: c.env.WAVE_MERCHANT_ID,
 		events: events.map((ev) => ({
 			...ev,
+			poster_keys: parsePosterKeys(ev.poster_key),
 			categories: categories.filter((cat) => cat.event_id === ev.id),
 			convoys: convoys.filter((cv) => cv.event_id === ev.id),
 		})),
@@ -148,14 +149,24 @@ adminRoutes.patch('/events/:id', async (c) => {
 adminRoutes.post('/events/:id/poster', async (c) => {
 	const id = c.req.param('id');
 	const db = getDB(c.env.DB);
-	const event = await db.selectFrom('events').select(['id']).where('id', '=', id).executeTakeFirst();
+	const event = await db
+		.selectFrom('events')
+		.select(['id', 'poster_key'])
+		.where('id', '=', id)
+		.executeTakeFirst();
 	if (!event) return c.json({ error: 'Événement introuvable' }, 404);
 
 	const formRes = await tryCatch(c.req.formData());
 	const formData = formRes.ok ? formRes.data : null;
-	const file = formData?.get('file');
-	if (!file || !(file instanceof File)) {
-		return c.json({ error: 'Champ "file" requis' }, 400);
+	if (!formData) {
+		return c.json({ error: 'Requête multipart invalide' }, 400);
+	}
+
+	const rawFiles = [...formData.getAll('files'), formData.get('file')].filter(
+		(f): f is File => f instanceof File && f.size > 0,
+	);
+	if (rawFiles.length === 0) {
+		return c.json({ error: 'Au moins une image ("file" ou "files") est requise' }, 400);
 	}
 
 	const mimeMap: Record<string, string> = {
@@ -163,28 +174,66 @@ adminRoutes.post('/events/:id/poster', async (c) => {
 		'image/png': 'png',
 		'image/webp': 'webp',
 	};
-	const ext = mimeMap[file.type];
-	if (!ext || file.size > 5 * 1024 * 1024) {
-		return c.json({ error: 'Image JPEG/PNG/WebP <= 5 Mo requise' }, 400);
+
+	const uploadedKeys: string[] = [];
+	for (const file of rawFiles) {
+		const ext = mimeMap[file.type];
+		if (!ext || file.size > 5 * 1024 * 1024) {
+			return c.json({ error: 'Chaque image doit être JPEG/PNG/WebP <= 5 Mo' }, 400);
+		}
+		const key = `events/${id}/${crypto.randomUUID()}.${ext}`;
+		const putRes = await tryCatch(
+			c.env.UPLOADS.put(key, await file.arrayBuffer(), {
+				httpMetadata: { contentType: file.type },
+			}),
+		);
+		if (!putRes.ok) {
+			return c.json({ error: 'Échec du téléversement de l’affiche' }, 500);
+		}
+		uploadedKeys.push(key);
 	}
 
-	const key = `events/${id}/${crypto.randomUUID()}.${ext}`;
-	const putRes = await tryCatch(
-		c.env.UPLOADS.put(key, await file.arrayBuffer(), {
-			httpMetadata: { contentType: file.type },
-		}),
-	);
-	if (!putRes.ok) {
-		return c.json({ error: 'Échec du téléversement de l’affiche' }, 500);
-	}
+	const existingKeys = parsePosterKeys(event.poster_key);
+	const allKeys = [...existingKeys, ...uploadedKeys];
 
 	await db
 		.updateTable('events')
-		.set({ poster_key: key, updated_at: nowIso() })
+		.set({ poster_key: JSON.stringify(allKeys), updated_at: nowIso() })
 		.where('id', '=', id)
 		.execute();
 
-	return c.json({ ok: true, poster_key: key });
+	return c.json({ ok: true, poster_key: allKeys[0] ?? null, poster_keys: allKeys });
+});
+
+adminRoutes.delete('/events/:id/poster', async (c) => {
+	const id = c.req.param('id');
+	const bodyRes = await tryCatch(c.req.json<{ key?: string }>());
+	const keyToDelete = bodyRes.ok ? bodyRes.data.key : undefined;
+	if (!keyToDelete) {
+		return c.json({ error: 'Clé média requise' }, 400);
+	}
+
+	const db = getDB(c.env.DB);
+	const event = await db
+		.selectFrom('events')
+		.select(['id', 'poster_key'])
+		.where('id', '=', id)
+		.executeTakeFirst();
+	if (!event) return c.json({ error: 'Événement introuvable' }, 404);
+
+	const remaining = parsePosterKeys(event.poster_key).filter((k) => k !== keyToDelete);
+	await tryCatch(c.env.UPLOADS.delete(keyToDelete));
+
+	await db
+		.updateTable('events')
+		.set({
+			poster_key: remaining.length > 0 ? JSON.stringify(remaining) : null,
+			updated_at: nowIso(),
+		})
+		.where('id', '=', id)
+		.execute();
+
+	return c.json({ ok: true, poster_keys: remaining });
 });
 
 adminRoutes.post('/events/:id/categories', async (c) => {

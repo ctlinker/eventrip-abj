@@ -1,4 +1,5 @@
 import type { Database } from 'db';
+import { tryCatchSync } from 'utils';
 
 export function nowIso(): string {
 	return new Date().toISOString();
@@ -29,6 +30,20 @@ export function slugify(input: string): string {
 		.toLowerCase()
 		.replace(/[^a-z0-9]+/g, '-')
 		.replace(/^-+|-+$/g, '');
+}
+
+export function parsePosterKeys(raw: string | null | undefined): string[] {
+	if (!raw) return [];
+	const trimmed = raw.trim();
+	if (!trimmed) return [];
+	if (trimmed.startsWith('[')) {
+		const parsed = tryCatchSync(() => JSON.parse(trimmed));
+		if (parsed.ok && Array.isArray(parsed.data)) {
+			return parsed.data.filter((k): k is string => typeof k === 'string' && k.length > 0);
+		}
+		return [];
+	}
+	return [trimmed];
 }
 
 export function buildWavePaymentUrl(

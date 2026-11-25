@@ -1,0 +1,91 @@
+import { useState } from 'preact/hooks';
+import { ChevronLeft, ChevronRight, Ticket } from 'lucide-preact';
+
+interface Props {
+	urls: string[];
+	alt: string;
+	aspectClass?: string;
+}
+
+export default function EventImageCarousel({ urls, alt, aspectClass = 'aspect-[16/10]' }: Props) {
+	const [index, setIndex] = useState(0);
+
+	if (urls.length === 0) {
+		return (
+			<div class={`relative ${aspectClass} w-full bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center overflow-hidden`}>
+				<Ticket class="h-12 w-12 text-green-600/60" />
+			</div>
+		);
+	}
+
+	const safeIndex = index % urls.length;
+
+	function prev(e: Event) {
+		e.preventDefault();
+		e.stopPropagation();
+		setIndex((i) => (i - 1 + urls.length) % urls.length);
+	}
+
+	function next(e: Event) {
+		e.preventDefault();
+		e.stopPropagation();
+		setIndex((i) => (i + 1) % urls.length);
+	}
+
+	return (
+		<div class={`relative ${aspectClass} w-full bg-green-50 overflow-hidden group/carousel`}>
+			<div
+				class="flex h-full w-full transition-transform duration-300 ease-out"
+				style={{ transform: `translateX(-${safeIndex * 100}%)` }}
+			>
+				{urls.map((url, idx) => (
+					<img
+						key={url}
+						src={url}
+						alt={`${alt} (${idx + 1}/${urls.length})`}
+						class="h-full w-full shrink-0 object-cover"
+					/>
+				))}
+			</div>
+
+			{urls.length > 1 && (
+				<>
+					<button
+						type="button"
+						onClick={prev}
+						aria-label="Photo précédente"
+						class="absolute left-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-sm opacity-90 hover:bg-white cursor-pointer"
+					>
+						<ChevronLeft class="h-4 w-4" />
+					</button>
+					<button
+						type="button"
+						onClick={next}
+						aria-label="Photo suivante"
+						class="absolute right-2 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-slate-800 shadow-sm opacity-90 hover:bg-white cursor-pointer"
+					>
+						<ChevronRight class="h-4 w-4" />
+					</button>
+
+					<div class="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full bg-black/30 px-2 py-1 backdrop-blur-xs">
+						{urls.map((_, i) => (
+							<button
+								key={i}
+								type="button"
+								aria-label={`Image ${i + 1}`}
+								onClick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									setIndex(i);
+								}}
+								class={`h-1.5 rounded-full transition-all cursor-pointer ${
+									i === safeIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/60'
+								}`}
+							/>
+						))}
+					</div>
+				</>
+			)}
+		</div>
+	);
+}

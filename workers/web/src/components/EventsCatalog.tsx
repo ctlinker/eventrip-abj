@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Calendar, MapPin, ArrowRight, Bus, Ticket } from 'lucide-preact';
-import { apiFetch, formatDate, formatXof, posterUrl, type PublicEvent } from '../lib/api';
+import { Calendar, MapPin, ArrowRight, Bus } from 'lucide-preact';
+import { apiFetch, formatDate, formatXof, getEventPosterUrls, type PublicEvent } from '../lib/api';
+import EventImageCarousel from './EventImageCarousel';
 
 export default function EventsCatalog() {
 	const [events, setEvents] = useState<PublicEvent[]>([]);
@@ -50,7 +51,7 @@ export default function EventsCatalog() {
 						? Math.min(...event.categories.map((c) => c.price_xof))
 						: null;
 				const totalRemaining = event.categories.reduce((acc, c) => acc + c.remaining, 0);
-				const poster = posterUrl(event.poster_key);
+				const posterUrls = getEventPosterUrls(event);
 
 				return (
 					<a
@@ -58,18 +59,8 @@ export default function EventsCatalog() {
 						href={`/events/${event.slug}`}
 						class="group flex flex-col overflow-hidden rounded-2xl border border-green-100 bg-white shadow-xs hover:border-green-300 hover:shadow-md transition-all"
 					>
-						<div class="relative aspect-[16/10] w-full bg-green-50 overflow-hidden">
-							{poster ? (
-								<img
-									src={poster}
-									alt={event.title}
-									class="h-full w-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
-								/>
-							) : (
-								<div class="flex h-full w-full items-center justify-center bg-gradient-to-br from-green-50 to-green-100">
-									<Ticket class="h-12 w-12 text-green-600/60" />
-								</div>
-							)}
+						<div class="relative">
+							<EventImageCarousel urls={posterUrls} alt={event.title} aspectClass="aspect-[16/10]" />
 							{event.convoys.length > 0 && (
 								<span class="absolute top-3 left-3 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-xs font-semibold text-green-700 shadow-xs border border-green-100">
 									<Bus class="h-3.5 w-3.5" />

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Plus } from 'lucide-preact';
-import { apiFetch, formatDate, formatXof } from '../../lib/api';
+import { Plus, ImagePlus, X } from 'lucide-preact';
+import { apiFetch, formatDate, formatXof, getEventPosterUrls } from '../../lib/api';
 
 interface AdminEvent {
 	id: string;
@@ -9,6 +9,8 @@ interface AdminEvent {
 	venue: string;
 	starts_at: string;
 	wave_payment_url: string | null;
+	poster_key: string | null;
+	poster_keys?: string[];
 	status: 'draft' | 'published' | 'archived';
 	categories: Array<{ id: string; name: string; price_xof: number; capacity: number; reserved_count: number }>;
 	convoys: Array<{ id: string; name: string; price_xof: number; capacity: number; reserved_count: number }>;
@@ -22,6 +24,7 @@ export default function AdminEvents() {
 	const [startsAt, setStartsAt] = useState('2026-12-20T18:00');
 	const [venue, setVenue] = useState('');
 	const [waveUrl, setWaveUrl] = useState('');
+	const [initialPhotos, setInitialPhotos] = useState<File[]>([]);
 	const [initialCatName, setInitialCatName] = useState('Standard');
 	const [initialPrice, setInitialPrice] = useState('');
 	const [initialCapacity, setInitialCapacity] = useState('');
@@ -73,10 +76,22 @@ export default function AdminEvents() {
 				});
 			}
 
+			if (created.event?.id && initialPhotos.length > 0) {
+				const form = new FormData();
+				for (const f of initialPhotos) {
+					form.append('files', f);
+				}
+				await apiFetch(`/api/admin/events/${created.event.id}/poster`, {
+					method: 'POST',
+					body: form,
+				});
+			}
+
 			setTitle('');
 			setDescription('');
 			setVenue('');
 			setWaveUrl('');
+			setInitialPhotos([]);
 			setInitialCatName('Standard');
 			setInitialPrice('');
 			setInitialCapacity('');
@@ -108,6 +123,35 @@ export default function AdminEvents() {
 				}),
 			});
 			setCatForm({ eventId: '', name: '', price: '', capacity: '' });
+			load();
+		} catch (err: any) {
+			setError(err.message);
+		}
+	}
+
+	async function handleUploadMorePhotos(eventId: string, files: FileList | null) {
+		if (!files || files.length === 0) return;
+		setError(null);
+		const form = new FormData();
+		Array.from(files).forEach((f) => form.append('files', f));
+		try {
+			await apiFetch(`/api/admin/events/${eventId}/poster`, {
+				method: 'POST',
+				body: form,
+			});
+			load();
+		} catch (err: any) {
+			setError(err.message);
+		}
+	}
+
+	async function handleRemovePhoto(eventId: string, key: string) {
+		setError(null);
+		try {
+			await apiFetch(`/api/admin/events/${eventId}/poster`, {
+				method: 'DELETE',
+				body: JSON.stringify({ key }),
+			});
 			load();
 		} catch (err: any) {
 			setError(err.message);
@@ -195,6 +239,26 @@ export default function AdminEvents() {
 						/>
 					</div>
 				</div>
+				<div class="rounded-xl border border-green-100 bg-green-50/40 p-4 space-y-2">
+					<label class="block text-xs font-bold uppercase tracking-wide text-green-800">
+						Photos de l’événement (1 ou plusieurs — JPEG, PNG, WebP)
+					</label>
+					<input
+						type="file"
+						multiple
+						accept="image/jpeg,image/png,image/webp"
+						onChange={(e) =>
+							setInitialPhotos(Array.from((e.target as HTMLInputElement).files || []))
+						}
+						class="block w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-green-600 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white hover:file:bg-green-700 cursor-pointer"
+					/>
+					{initialPhotos.length > 0 && (
+						<p class="text-xs text-green-700 font-medium">
+							{initialPhotos.length} photo(s) sélectionnée(s)
+						</p>
+					)}
+				</div>
+
 				{error && <p class="text-xs text-red-600">{error}</p>}
 				<button
 					type="submit"
@@ -228,6 +292,38 @@ export default function AdminEvents() {
 							</button>
 						</div>
 
+						<div class="flex flex-wrap items-center gap-2">
+							{getEventPosterUrls(ev).map((url, idx) => {
+								const key = ev.poster_keys?.[idx] || ev.poster_key || '';
+								return (
+									<div key={url} class="relative h-16 w-24 overflow-hidden rounded-xl border border-green-200 bg-green-50">
+										<img src={url} alt={ev.title} class="h-full w-full object-cover" />
+										{key && (
+											<button
+												type="button"
+												onClick={() => handleRemovePhoto(ev.id, key)}
+												title="Supprimer cette photo"
+												class="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white hover:bg-red-600 cursor-pointer"
+											>
+												<X class="h-3 w-3" />
+											</button>
+										)}
+									</div>
+								);
+							})}
+							<label class="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-green-300 bg-green-50/50 px-3 py-2 text-xs font-semibold text-green-700 hover:bg-green-100 cursor-pointer">
+								<ImagePlus class="h-4 w-4" />
+								<span>Ajouter photos</span>
+								<input
+									type="file"
+									multiple
+									accept="image/jpeg,image/png,image/webp"
+									class="hidden"
+									onChange={(e) => handleUploadMorePhotos(ev.id, (e.target as HTMLInputElement).files)}
+								/>
+							</label>
+						</div>
+
 						<div class="text-sm text-slate-700 space-y-1">
 							{ev.categories.length === 0 && (
 								<p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
@@ -241,7 +337,36 @@ export default function AdminEvents() {
 										? `${merchant}?amount=${c.price_xof}`
 										: `https://pay.wave.com/m/${merchant}/c/ci?amount=${c.price_xof}`
 									: null;
-								return (
+								async function handleUploadMorePhotos(eventId: string, files: FileList | null) {
+		if (!files || files.length === 0) return;
+		setError(null);
+		const form = new FormData();
+		Array.from(files).forEach((f) => form.append('files', f));
+		try {
+			await apiFetch(`/api/admin/events/${eventId}/poster`, {
+				method: 'POST',
+				body: form,
+			});
+			load();
+		} catch (err: any) {
+			setError(err.message);
+		}
+	}
+
+	async function handleRemovePhoto(eventId: string, key: string) {
+		setError(null);
+		try {
+			await apiFetch(`/api/admin/events/${eventId}/poster`, {
+				method: 'DELETE',
+				body: JSON.stringify({ key }),
+			});
+			load();
+		} catch (err: any) {
+			setError(err.message);
+		}
+	}
+
+	return (
 									<div key={c.id} class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-green-50/50 px-3 py-1.5">
 										<span>{c.name}</span>
 										<div class="flex items-center gap-3">

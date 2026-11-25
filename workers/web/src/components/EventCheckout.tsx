@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Calendar, MapPin, Bus, Ticket, Minus, Plus, ShoppingBag } from 'lucide-preact';
-import { apiFetch, formatDate, formatXof, posterUrl, type PublicEvent } from '../lib/api';
+import { apiFetch, formatDate, formatXof, getEventPosterUrls, type PublicEvent } from '../lib/api';
+import EventImageCarousel from './EventImageCarousel';
 
 interface Props {
 	slug: string;
@@ -71,16 +72,14 @@ export default function EventCheckout({ slug }: Props) {
 		}
 	}
 
-	const poster = posterUrl(event.poster_key);
+	const posterUrls = getEventPosterUrls(event);
 
 	return (
 		<div class="grid gap-8 lg:grid-cols-3">
 			<div class="lg:col-span-2 space-y-8">
 				<div class="overflow-hidden rounded-2xl border border-green-100 bg-white">
-					{poster && (
-						<div class="aspect-[16/9] w-full bg-green-50 overflow-hidden">
-							<img src={poster} alt={event.title} class="h-full w-full object-cover" />
-						</div>
+					{posterUrls.length > 0 && (
+						<EventImageCarousel urls={posterUrls} alt={event.title} aspectClass="aspect-[16/9]" />
 					)}
 					<div class="p-6 sm:p-8">
 						<span class="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700 border border-green-200">

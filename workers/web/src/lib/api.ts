@@ -44,6 +44,7 @@ export interface PublicEvent {
 	title: string;
 	description: string;
 	poster_key: string | null;
+	poster_keys?: string[];
 	starts_at: string;
 	ends_at: string | null;
 	venue: string;
@@ -95,4 +96,17 @@ export function formatDate(iso: string): string {
 export function posterUrl(key: string | null): string | null {
 	if (!key) return null;
 	return `${API_BASE}/api/media/posters/${key}`;
+}
+
+export function getEventPosterUrls(ev: {
+	poster_key?: string | null;
+	poster_keys?: string[];
+}): string[] {
+	if (Array.isArray(ev.poster_keys) && ev.poster_keys.length > 0) {
+		return ev.poster_keys.map((k) => `${API_BASE}/api/media/posters/${k}`);
+	}
+	if (ev.poster_key && !ev.poster_key.startsWith('[')) {
+		return [`${API_BASE}/api/media/posters/${ev.poster_key}`];
+	}
+	return [];
 }
