@@ -7,7 +7,8 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "bun check"
+    "typecheck": "bun check",
+    "dev": "bun run workers/web/dev.ts"
   },
   "devDependencies": {
     "@types/bun": "latest"

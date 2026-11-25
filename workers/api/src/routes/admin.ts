@@ -41,6 +41,23 @@ adminRoutes.get('/dashboard', async (c) => {
 	});
 });
 
+adminRoutes.get('/events', async (c) => {
+	const db = getDB(c.env.DB);
+	const events = await db.selectFrom('events').selectAll().orderBy('created_at', 'desc').execute();
+	const categories = events.length
+		? await db.selectFrom('ticket_categories').selectAll().execute()
+		: [];
+	const convoys = events.length ? await db.selectFrom('convoys').selectAll().execute() : [];
+
+	return c.json({
+		events: events.map((ev) => ({
+			...ev,
+			categories: categories.filter((cat) => cat.event_id === ev.id),
+			convoys: convoys.filter((cv) => cv.event_id === ev.id),
+		})),
+	});
+});
+
 adminRoutes.post('/events', async (c) => {
 	const user = c.get('user');
 	const body = await c.req.json<{
