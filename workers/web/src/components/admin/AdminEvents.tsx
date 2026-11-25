@@ -8,6 +8,7 @@ interface AdminEvent {
 	title: string;
 	venue: string;
 	starts_at: string;
+	wave_payment_url: string | null;
 	status: 'draft' | 'published' | 'archived';
 	categories: Array<{ id: string; name: string; price_xof: number; capacity: number; reserved_count: number }>;
 	convoys: Array<{ id: string; name: string; price_xof: number; capacity: number; reserved_count: number }>;
@@ -15,6 +16,7 @@ interface AdminEvent {
 
 export default function AdminEvents() {
 	const [events, setEvents] = useState<AdminEvent[]>([]);
+	const [defaultMerchantId, setDefaultMerchantId] = useState('');
 	const [title, setTitle] = useState('');
 	const [description, setDescription] = useState('');
 	const [startsAt, setStartsAt] = useState('2026-12-20T18:00');
@@ -29,8 +31,11 @@ export default function AdminEvents() {
 	const [error, setError] = useState<string | null>(null);
 
 	function load() {
-		apiFetch<{ events: AdminEvent[] }>('/api/admin/events')
-			.then((res) => setEvents(res.events))
+		apiFetch<{ default_wave_merchant_id?: string; events: AdminEvent[] }>('/api/admin/events')
+			.then((res) => {
+				setEvents(res.events);
+				if (res.default_wave_merchant_id) setDefaultMerchantId(res.default_wave_merchant_id);
+			})
 			.catch((err) => setError(err.message));
 	}
 
@@ -120,13 +125,16 @@ export default function AdminEvents() {
 						class="rounded-xl border border-green-200 px-3.5 py-2 text-sm"
 					/>
 					<input
-						type="url"
-						placeholder="Lien Wave (optionnel)"
+						type="text"
+						placeholder={`ID Marchand Wave (optionnel · défaut : ${defaultMerchantId || 'plateforme'})`}
 						value={waveUrl}
 						onInput={(e) => setWaveUrl((e.target as HTMLInputElement).value)}
 						class="rounded-xl border border-green-200 px-3.5 py-2 text-sm"
 					/>
 				</div>
+				<p class="text-xs text-slate-500">
+					Le lien Wave <span class="font-mono">https://pay.wave.com/m/&lt;marchand&gt;/c/ci?amount=&lt;montant&gt;</span> est généré automatiquement à la commande selon les tickets choisis.
+				</p>
 				<textarea
 					required
 					rows={3}
@@ -169,14 +177,29 @@ export default function AdminEvents() {
 						</div>
 
 						<div class="text-sm text-slate-700 space-y-1">
-							{ev.categories.map((c) => (
-								<div key={c.id} class="flex justify-between rounded-lg bg-green-50/50 px-3 py-1.5">
-									<span>{c.name}</span>
-									<span class="font-semibold">
-										{formatXof(c.price_xof)} · {c.reserved_count}/{c.capacity} réservés
-									</span>
-								</div>
-							))}
+							{ev.categories.map((c) => {
+								const merchant = ev.wave_payment_url || defaultMerchantId;
+								const previewUrl = merchant
+									? merchant.startsWith('http')
+										? `${merchant}?amount=${c.price_xof}`
+										: `https://pay.wave.com/m/${merchant}/c/ci?amount=${c.price_xof}`
+									: null;
+								return (
+									<div key={c.id} class="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-green-50/50 px-3 py-1.5">
+										<span>{c.name}</span>
+										<div class="flex items-center gap-3">
+											{previewUrl && (
+												<span class="hidden sm:inline font-mono text-[11px] text-green-700 truncate max-w-xs">
+													{previewUrl}
+												</span>
+											)}
+											<span class="font-semibold">
+												{formatXof(c.price_xof)} · {c.reserved_count}/{c.capacity} réservés
+											</span>
+										</div>
+									</div>
+								);
+							})}
 						</div>
 
 						{catForm.eventId === ev.id ? (

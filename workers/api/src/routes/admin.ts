@@ -51,6 +51,7 @@ adminRoutes.get('/events', async (c) => {
 	const convoys = events.length ? await db.selectFrom('convoys').selectAll().execute() : [];
 
 	return c.json({
+		default_wave_merchant_id: c.env.WAVE_MERCHANT_ID,
 		events: events.map((ev) => ({
 			...ev,
 			categories: categories.filter((cat) => cat.event_id === ev.id),
