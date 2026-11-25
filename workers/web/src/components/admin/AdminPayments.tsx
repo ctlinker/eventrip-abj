@@ -23,7 +23,6 @@ interface AdminPayment {
 export default function AdminPayments() {
 	const [payments, setPayments] = useState<AdminPayment[]>([]);
 	const [filter, setFilter] = useState<'pending' | 'confirmed' | 'rejected' | ''>('pending');
-	const [waveRefs, setWaveRefs] = useState<Record<string, string>>({});
 	const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
 	const [previewId, setPreviewId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
@@ -33,18 +32,7 @@ export default function AdminPayments() {
 		setLoading(true);
 		const qs = status ? `?status=${status}` : '';
 		apiFetch<{ payments: AdminPayment[] }>(`/api/admin/payments${qs}`)
-			.then((res) => {
-				setPayments(res.payments);
-				setWaveRefs((prev) => {
-					const next = { ...prev };
-					for (const p of res.payments) {
-						if (p.wave_transaction_ref && !next[p.id]) {
-							next[p.id] = p.wave_transaction_ref;
-						}
-					}
-					return next;
-				});
-			})
+			.then((res) => setPayments(res.payments))
 			.catch((err) => setError(err.message))
 			.finally(() => setLoading(false));
 	}
@@ -55,15 +43,10 @@ export default function AdminPayments() {
 
 	async function handleConfirm(id: string) {
 		setError(null);
-		const ref = waveRefs[id]?.trim();
-		if (!ref) {
-			setError('Veuillez saisir la référence de transaction Wave.');
-			return;
-		}
 		try {
 			await apiFetch(`/api/admin/payments/${id}/confirm`, {
 				method: 'POST',
-				body: JSON.stringify({ wave_transaction_ref: ref }),
+				body: JSON.stringify({}),
 			});
 			load(filter);
 		} catch (err: any) {
@@ -175,28 +158,17 @@ export default function AdminPayments() {
 							)}
 
 							{p.status === 'pending' && (
-								<div class="grid gap-3 sm:grid-cols-2 pt-3 border-t border-green-50">
-									<div class="flex gap-2">
-										<input
-											type="text"
-											placeholder="Réf. transaction Wave"
-											value={waveRefs[p.id] || ''}
-											onInput={(e) =>
-												setWaveRefs({ ...waveRefs, [p.id]: (e.target as HTMLInputElement).value })
-											}
-											class="flex-1 rounded-xl border border-green-200 px-3 py-2 text-sm focus:border-green-600 focus:outline-none"
-										/>
-										<button
-											type="button"
-											onClick={() => handleConfirm(p.id)}
-											class="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700 cursor-pointer"
-										>
-											<Check class="h-4 w-4" />
-											Confirmer
-										</button>
-									</div>
+								<div class="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-green-50">
+									<button
+										type="button"
+										onClick={() => handleConfirm(p.id)}
+										class="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 cursor-pointer"
+									>
+										<Check class="h-4 w-4" />
+										Valider le paiement
+									</button>
 
-									<div class="flex gap-2">
+									<div class="flex flex-1 min-w-[240px] max-w-md gap-2">
 										<input
 											type="text"
 											placeholder="Motif du rejet"

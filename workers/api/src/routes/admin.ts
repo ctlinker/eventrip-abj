@@ -425,11 +425,6 @@ adminRoutes.post('/payments/:id/confirm', requirePermission('payments:verify'), 
 	const body = await c.req
 		.json<{ wave_transaction_ref?: string }>()
 		.catch((): { wave_transaction_ref?: string } => ({}));
-	const waveRef = body.wave_transaction_ref?.trim();
-
-	if (!waveRef) {
-		return c.json({ error: 'La référence de transaction Wave est obligatoire' }, 400);
-	}
 
 	const db = getDB(c.env.DB);
 	const payment = await db
@@ -445,15 +440,19 @@ adminRoutes.post('/payments/:id/confirm', requirePermission('payments:verify'), 
 		return c.json({ error: `Paiement déjà traité (${payment.status})` }, 409);
 	}
 
-	const existingRef = await db
-		.selectFrom('payments')
-		.select(['id'])
-		.where('wave_transaction_ref', '=', waveRef)
-		.where('status', '=', 'confirmed')
-		.executeTakeFirst();
+	const waveRef = body.wave_transaction_ref?.trim() || payment.wave_transaction_ref?.trim() || null;
 
-	if (existingRef) {
-		return c.json({ error: 'Cette référence Wave a déjà été utilisée pour un autre paiement' }, 409);
+	if (waveRef) {
+		const existingRef = await db
+			.selectFrom('payments')
+			.select(['id'])
+			.where('wave_transaction_ref', '=', waveRef)
+			.where('status', '=', 'confirmed')
+			.executeTakeFirst();
+
+		if (existingRef) {
+			return c.json({ error: 'Cette référence Wave a déjà été utilisée pour un autre paiement' }, 409);
+		}
 	}
 
 	const now = nowIso();
