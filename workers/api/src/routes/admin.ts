@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { getDB } from 'db';
+import { isUniqueConstraintError, tryCatch } from 'utils';
 import { requireAdmin, requireAuth, requirePermission } from '../middleware/auth';
 import { createNotification, nowIso, slugify, writeAuditLog } from '../lib/utils';
 import { releaseOrderReservations } from '../services/orders';
@@ -149,7 +150,8 @@ adminRoutes.post('/events/:id/poster', async (c) => {
 	const event = await db.selectFrom('events').select(['id']).where('id', '=', id).executeTakeFirst();
 	if (!event) return c.json({ error: 'Événement introuvable' }, 404);
 
-	const formData = await c.req.formData().catch(() => null);
+	const formRes = await tryCatch(c.req.formData());
+	const formData = formRes.ok ? formRes.data : null;
 	const file = formData?.get('file');
 	if (!file || !(file instanceof File)) {
 		return c.json({ error: 'Champ "file" requis' }, 400);
@@ -166,9 +168,14 @@ adminRoutes.post('/events/:id/poster', async (c) => {
 	}
 
 	const key = `events/${id}/${crypto.randomUUID()}.${ext}`;
-	await c.env.UPLOADS.put(key, await file.arrayBuffer(), {
-		httpMetadata: { contentType: file.type },
-	});
+	const putRes = await tryCatch(
+		c.env.UPLOADS.put(key, await file.arrayBuffer(), {
+			httpMetadata: { contentType: file.type },
+		}),
+	);
+	if (!putRes.ok) {
+		return c.json({ error: 'Échec du téléversement de l’affiche' }, 500);
+	}
 
 	await db
 		.updateTable('events')
@@ -400,21 +407,23 @@ adminRoutes.post('/payments/:id/confirm', requirePermission('payments:verify'), 
 	}
 
 	const now = nowIso();
-	try {
-		const res = await c.env.DB.prepare(
+	const updateRes = await tryCatch(
+		c.env.DB.prepare(
 			"UPDATE payments SET status = 'confirmed', wave_transaction_ref = ?, reviewed_by = ?, reviewed_at = ?, updated_at = ? WHERE id = ? AND status = 'pending'",
 		)
 			.bind(waveRef, admin.id, now, now, paymentId)
-			.run();
+			.run(),
+	);
 
-		if ((res.meta?.changes ?? 0) !== 1) {
-			return c.json({ error: 'Paiement déjà traité' }, 409);
-		}
-	} catch (err: any) {
-		if (String(err?.message ?? err).includes('UNIQUE')) {
+	if (!updateRes.ok) {
+		if (isUniqueConstraintError(updateRes.error)) {
 			return c.json({ error: 'Cette référence Wave a déjà été utilisée' }, 409);
 		}
-		throw err;
+		return c.json({ error: 'Erreur lors de la confirmation du paiement' }, 500);
+	}
+
+	if ((updateRes.data.meta?.changes ?? 0) !== 1) {
+		return c.json({ error: 'Paiement déjà traité' }, 409);
 	}
 
 	await c.env.DB.batch([

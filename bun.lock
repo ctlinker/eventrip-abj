@@ -31,12 +31,17 @@
         "wrangler": "^4.163.0",
       },
     },
+    "packages/utils": {
+      "name": "utils",
+      "version": "0.0.0",
+    },
     "workers/api": {
       "name": "api",
       "version": "0.0.0",
       "dependencies": {
         "db": "workspace:*",
         "hono": "^4.13.22",
+        "utils": "workspace:*",
       },
       "devDependencies": {
         "@cloudflare/vitest-plugin": "^1.4.3",
@@ -59,6 +64,7 @@
         "preact": "^11.2.0",
         "qrcode": "^1.5.4",
         "tailwindcss": "^4.3.5",
+        "utils": "workspace:*",
       },
       "devDependencies": {
         "@types/node": "^26.6.7",
@@ -1275,6 +1281,8 @@
     "update-browserslist-db": ["update-browserslist-db@1.4.0", "", { "dependencies": { "escalade": "^3.2.0", "picocolors": "^1.1.1" }, "peerDependencies": { "browserslist": ">= 4.21.0" }, "bin": { "update-browserslist-db": "cli.js" } }, "sha512-WPJuOnjI9FWDct4fB+ej4Mz8opLaw5CDcZ2t44tFZ0vIQVYWzBhWR3mkixuUj/A7+vY4V9+ApOZ2YYLwdgq46w=="],
 
     "util-deprecate": ["util-deprecate@1.0.2", "", {}, "sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw=="],
+
+    "utils": ["utils@workspace:packages/utils"],
 
     "verkit": ["verkit@0.5.0", "", {}, "sha512-u4J1hr6Y+C/hit34GwL3eIcUf3wngT8TlYUjK7tk0jxydKLAq3sYvifjdTDA6U3KCKRcQCQDGf/srjxfZF3l7g=="],
 

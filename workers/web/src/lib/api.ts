@@ -1,3 +1,5 @@
+import { getErrorMessage, tryCatch } from 'utils';
+
 export const API_BASE =
 	(import.meta as unknown as { env?: Record<string, string> }).env?.PUBLIC_API_URL ||
 	'http://127.0.0.1:8787';
@@ -54,18 +56,29 @@ export interface PublicEvent {
 }
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-	const res = await fetch(`${API_BASE}${path}`, {
-		...init,
-		credentials: 'include',
-		headers: {
-			...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
-			...(init.headers || {}),
-		},
-	});
+	const resResult = await tryCatch(
+		fetch(`${API_BASE}${path}`, {
+			...init,
+			credentials: 'include',
+			headers: {
+				...(init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+				...(init.headers || {}),
+			},
+		}),
+	);
 
-	const data = await res.json().catch(() => ({}));
+	if (!resResult.ok) {
+		throw new Error(getErrorMessage(resResult.error, 'Erreur réseau'));
+	}
+
+	const res = resResult.data;
+	const jsonResult = await tryCatch(res.json());
+	const data = jsonResult.ok ? (jsonResult.data as Record<string, unknown>) : {};
+
 	if (!res.ok) {
-		throw new Error((data as { error?: string; message?: string }).error || (data as { message?: string }).message || `Erreur ${res.status}`);
+		throw new Error(
+			(data.error as string) || (data.message as string) || `Erreur ${res.status}`,
+		);
 	}
 	return data as T;
 }

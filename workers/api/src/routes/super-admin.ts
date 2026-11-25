@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { getDB, type Permission, type UserRole } from 'db';
+import { tryCatch } from 'utils';
 import { requireAuth, requireSuperAdmin } from '../middleware/auth';
 import { nowIso, writeAuditLog } from '../lib/utils';
 import type { AppEnv } from '../types';
@@ -22,9 +23,10 @@ superAdminRoutes.get('/users', async (c) => {
 superAdminRoutes.patch('/users/:id', async (c) => {
 	const actor = c.get('user');
 	const targetId = c.req.param('id');
-	const body = await c.req
-		.json<{ role?: UserRole; permissions?: Permission[]; is_active?: number }>()
-		.catch((): { role?: UserRole; permissions?: Permission[]; is_active?: number } => ({}));
+	const parsedBody = await tryCatch(
+		c.req.json<{ role?: UserRole; permissions?: Permission[]; is_active?: number }>(),
+	);
+	const body = parsedBody.ok ? parsedBody.data : {};
 
 	const db = getDB(c.env.DB);
 	const target = await db

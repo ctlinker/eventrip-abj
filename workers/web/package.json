@@ -23,7 +23,8 @@
 		"lucide-preact": "^1.79.0",
 		"preact": "^11.2.0",
 		"qrcode": "^1.5.4",
-		"tailwindcss": "^4.3.5"
+		"tailwindcss": "^4.3.5",
+		"utils": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^26.6.7",

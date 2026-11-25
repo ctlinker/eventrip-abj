@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { getDB } from 'db';
+import { isUniqueConstraintError, tryCatch } from 'utils';
 import { requireAuth } from '../middleware/auth';
 import {
 	addHoursIso,
@@ -16,9 +17,8 @@ clientRoutes.use('*', requireAuth);
 
 clientRoutes.patch('/me', async (c) => {
 	const user = c.get('user');
-	const body = await c.req
-		.json<{ name?: string; phone?: string | null }>()
-		.catch((): { name?: string; phone?: string | null } => ({}));
+	const parsed = await tryCatch(c.req.json<{ name?: string; phone?: string | null }>());
+	const body = parsed.ok ? parsed.data : {};
 	const db = getDB(c.env.DB);
 
 	const updates: { name?: string; phone?: string | null; updatedAt: string } = {
@@ -33,20 +33,22 @@ clientRoutes.patch('/me', async (c) => {
 		updates.phone = trimmed && trimmed.length > 0 ? trimmed : null;
 	}
 
-	try {
-		await db.updateTable('user').set(updates).where('id', '=', user.id).execute();
-		const updated = await db
-			.selectFrom('user')
-			.select(['id', 'name', 'email', 'phone', 'role', 'permissions', 'is_active'])
-			.where('id', '=', user.id)
-			.executeTakeFirst();
-		return c.json({ user: updated });
-	} catch (err: any) {
-		if (String(err?.message ?? err).includes('UNIQUE')) {
+	const updateRes = await tryCatch(
+		db.updateTable('user').set(updates).where('id', '=', user.id).execute(),
+	);
+	if (!updateRes.ok) {
+		if (isUniqueConstraintError(updateRes.error)) {
 			return c.json({ error: 'Ce numéro de téléphone est déjà utilisé' }, 409);
 		}
-		throw err;
+		return c.json({ error: 'Impossible de mettre à jour le profil' }, 500);
 	}
+
+	const updated = await db
+		.selectFrom('user')
+		.select(['id', 'name', 'email', 'phone', 'role', 'permissions', 'is_active'])
+		.where('id', '=', user.id)
+		.executeTakeFirst();
+	return c.json({ user: updated });
 });
 
 interface CreateOrderItemInput {
@@ -396,7 +398,8 @@ clientRoutes.post('/orders/:id/proof', async (c) => {
 		return c.json({ error: 'Cette commande a expiré' }, 410);
 	}
 
-	const formData = await c.req.formData().catch(() => null);
+	const formRes = await tryCatch(c.req.formData());
+	const formData = formRes.ok ? formRes.data : null;
 	if (!formData) {
 		return c.json({ error: 'Requête multipart invalide' }, 400);
 	}
@@ -418,9 +421,14 @@ clientRoutes.post('/orders/:id/proof', async (c) => {
 	const payerPhone = typeof rawPhone === 'string' && rawPhone.trim() ? rawPhone.trim() : user.phone ?? null;
 
 	const key = `proofs/${orderId}/${crypto.randomUUID()}.${ext}`;
-	await c.env.UPLOADS.put(key, await file.arrayBuffer(), {
-		httpMetadata: { contentType: file.type },
-	});
+	const putRes = await tryCatch(
+		c.env.UPLOADS.put(key, await file.arrayBuffer(), {
+			httpMetadata: { contentType: file.type },
+		}),
+	);
+	if (!putRes.ok) {
+		return c.json({ error: 'Échec du téléversement du justificatif' }, 500);
+	}
 
 	// Transition atomique vers under_review pour geler l'expiration
 	const res = await c.env.DB.prepare(

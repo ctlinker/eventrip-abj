@@ -21,6 +21,7 @@
 	},
 	"dependencies": {
 		"db": "workspace:*",
-		"hono": "^4.13.22"
+		"hono": "^4.13.22",
+		"utils": "workspace:*"
 	}
 }
