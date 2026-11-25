@@ -75,9 +75,9 @@ export default function AdminUsers() {
 
 	return (
 		<div class="space-y-8">
-			<div class="rounded-2xl border border-green-100 bg-white p-6 space-y-4">
-				<h2 class="text-lg font-bold text-slate-900">Comptes &amp; Permissions</h2>
-				<div class="divide-y divide-green-50">
+			<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
+				<h2 class="text-lg font-extrabold text-slate-950">Comptes &amp; Permissions</h2>
+				<div class="divide-y divide-slate-100">
 					{users.map((u) => {
 						const perms: string[] = (() => {
 							try {
@@ -88,20 +88,21 @@ export default function AdminUsers() {
 						})();
 						const canVerify = perms.includes('payments:verify');
 						return (
-							<div key={u.id} class="py-3 flex flex-wrap items-center justify-between gap-4 text-sm">
+							<div key={u.id} class="py-3.5 flex flex-wrap items-center justify-between gap-4 text-sm">
 								<div>
-									<p class="font-semibold text-slate-900">{u.name}</p>
+									<p class="font-bold text-slate-950">{u.name}</p>
 									<p class="text-xs text-slate-500">
-										{u.email} {u.phone ? `· ${u.phone}` : ''}
+										{u.email} {u.phone ? `• ${u.phone}` : ''}
 									</p>
 								</div>
 								<div class="flex flex-wrap items-center gap-2">
 									<select
+										aria-label={`Rôle de ${u.name}`}
 										value={u.role}
 										onChange={(e) =>
 											updateUser(u.id, { role: (e.target as HTMLSelectElement).value })
 										}
-										class="rounded-lg border border-green-200 px-2.5 py-1 text-xs font-semibold"
+										class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:border-emerald-600 focus:outline-none"
 									>
 										<option value="client">Client</option>
 										<option value="admin">Admin</option>
@@ -116,10 +117,10 @@ export default function AdminUsers() {
 													permissions: canVerify ? [] : ['payments:verify'],
 												})
 											}
-											class={`rounded-lg px-2.5 py-1 text-xs font-semibold border cursor-pointer ${
+											class={`rounded-lg px-2.5 py-1.5 text-xs font-bold border cursor-pointer ${
 												canVerify
-													? 'bg-green-600 text-white border-green-600'
-													: 'bg-white text-slate-600 border-green-200'
+													? 'bg-emerald-600 text-white border-emerald-600'
+													: 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
 											}`}
 										>
 											{canVerify ? 'payments:verify ✓' : 'Autoriser paiements'}
@@ -129,9 +130,9 @@ export default function AdminUsers() {
 									<button
 										type="button"
 										onClick={() => updateUser(u.id, { is_active: u.is_active ? 0 : 1 })}
-										class={`rounded-lg px-2.5 py-1 text-xs font-semibold border cursor-pointer ${
+										class={`rounded-lg px-2.5 py-1.5 text-xs font-bold border cursor-pointer ${
 											u.is_active
-												? 'bg-green-50 text-green-700 border-green-200'
+												? 'bg-emerald-50 text-emerald-700 border-emerald-200'
 												: 'bg-red-50 text-red-700 border-red-200'
 										}`}
 									>
@@ -144,13 +145,14 @@ export default function AdminUsers() {
 				</div>
 			</div>
 
-			<div class="rounded-2xl border border-green-100 bg-white p-6 space-y-3">
-				<h2 class="text-lg font-bold text-slate-900">Journaux d’audit récents</h2>
-				<div class="divide-y divide-green-50 text-xs">
+			<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-3">
+				<h2 class="text-lg font-extrabold text-slate-950">Journaux d’audit récents</h2>
+				<div class="divide-y divide-slate-100 text-xs">
 					{logs.map((log) => (
-						<div key={log.id} class="py-2 flex justify-between text-slate-600">
+						<div key={log.id} class="py-2 flex justify-between text-slate-500">
 							<span>
-								<strong class="text-slate-900">{log.action}</strong> · {log.entity_type} ({log.entity_id.slice(0, 8)})
+								<strong class="text-slate-900">{log.action}</strong> • {log.entity_type} (
+								{log.entity_id.slice(0, 8)})
 							</span>
 							<span>{formatDate(log.created_at)}</span>
 						</div>

@@ -285,18 +285,18 @@ export default function AdminEvents() {
 	return (
 		<div class="space-y-6">
 			{/* Barre de séparation claire : Liste / Catégories / + Nouvel événement */}
-			<div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-green-100 bg-green-50/40 p-3">
-				<div class="flex flex-wrap gap-2">
+			<div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-2.5">
+				<div class="flex flex-wrap gap-1.5">
 					<button
 						type="button"
 						onClick={() => {
 							setView('list');
 							setError(null);
 						}}
-						class={`rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${
+						class={`rounded-xl px-4 py-2 text-sm font-bold transition-colors cursor-pointer ${
 							view === 'list'
-								? 'bg-white text-green-800 border border-green-200 shadow-xs'
-								: 'text-slate-600 hover:bg-white/60'
+								? 'bg-white text-slate-950 border border-slate-200 shadow-xs'
+								: 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
 						}`}
 					>
 						Événements ({events.length})
@@ -307,13 +307,13 @@ export default function AdminEvents() {
 							setView('categories');
 							setError(null);
 						}}
-						class={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition-colors cursor-pointer ${
+						class={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition-colors cursor-pointer ${
 							view === 'categories'
-								? 'bg-white text-green-800 border border-green-200 shadow-xs'
-								: 'text-slate-600 hover:bg-white/60'
+								? 'bg-white text-slate-950 border border-slate-200 shadow-xs'
+								: 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
 						}`}
 					>
-						<Tag class="h-4 w-4" />
+						<Tag class="h-4 w-4 text-emerald-600" />
 						Catégories ({eventCategories.length})
 					</button>
 				</div>
@@ -325,7 +325,7 @@ export default function AdminEvents() {
 							setView('create');
 							setError(null);
 						}}
-						class="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-green-700 cursor-pointer"
+						class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-xs hover:bg-emerald-700 cursor-pointer"
 					>
 						<Plus class="h-4 w-4" />
 						Nouvel événement
@@ -337,7 +337,7 @@ export default function AdminEvents() {
 							setView('list');
 							setError(null);
 						}}
-						class="inline-flex items-center gap-1.5 rounded-xl border border-green-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-green-50 cursor-pointer"
+						class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
 					>
 						<ArrowLeft class="h-4 w-4" />
 						Retour à la liste
@@ -620,25 +620,25 @@ export default function AdminEvents() {
 									: null;
 
 							return (
-								<div key={ev.id} class="rounded-2xl border border-green-100 bg-white p-6 space-y-4">
+								<div key={ev.id} class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
 									<div class="flex flex-wrap items-center justify-between gap-3">
 										<div>
 											<div class="flex flex-wrap items-center gap-2.5">
-												<h3 class="text-lg font-bold text-slate-900">{ev.title}</h3>
+												<h3 class="text-lg font-extrabold text-slate-950">{ev.title}</h3>
 												{ev.category_name && (
-													<span class="rounded-full bg-green-600 px-2.5 py-0.5 text-xs font-semibold text-white">
+													<span class="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-extrabold uppercase tracking-wider text-slate-800">
 														{ev.category_name}
 													</span>
 												)}
-												<span class="rounded-full bg-green-50 border border-green-200 px-2.5 py-0.5 text-xs font-bold text-green-700">
+												<span class="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
 													{formatXof(ev.price_xof)}
 												</span>
 											</div>
 											<p class="text-xs text-slate-500 mt-1">
-												{formatDate(ev.starts_at)} · {ev.venue}
+												{formatDate(ev.starts_at)} • {ev.venue}
 											</p>
 											{previewUrl && (
-												<p class="font-mono text-[11px] text-green-700 mt-1 break-all">
+												<p class="font-mono text-[11px] text-emerald-700 mt-1 break-all">
 													{previewUrl}
 												</p>
 											)}
@@ -646,9 +646,9 @@ export default function AdminEvents() {
 										<button
 											type="button"
 											onClick={() => toggleStatus(ev)}
-											class={`rounded-xl px-3 py-1.5 text-xs font-semibold border cursor-pointer ${
+											class={`rounded-xl px-3 py-1.5 text-xs font-bold border cursor-pointer ${
 												ev.status === 'published'
-													? 'bg-green-600 text-white border-green-600'
+													? 'bg-emerald-600 text-white border-emerald-600'
 													: 'bg-slate-100 text-slate-700 border-slate-200'
 											}`}
 										>
@@ -694,21 +694,21 @@ export default function AdminEvents() {
 									</div>
 
 									{ev.convoys.length > 0 && (
-										<div class="text-xs text-slate-700 space-y-1 pt-2 border-t border-green-50">
-											<p class="font-semibold text-slate-600">
+										<div class="text-xs text-slate-700 space-y-1.5 pt-2 border-t border-slate-100">
+											<p class="font-bold text-slate-600">
 												Départs par commune (prix inchangé) :
 											</p>
 											{ev.convoys.map((cv) => (
 												<div
 													key={cv.id}
-													class="flex justify-between rounded-lg bg-green-50/40 px-3 py-1.5"
+													class="flex justify-between rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-1.5"
 												>
-													<span>
+													<span class="font-medium">
 														{cv.commune || cv.name}{' '}
-														{cv.meeting_point ? `· ${cv.meeting_point}` : ''}
+														{cv.meeting_point ? `• ${cv.meeting_point}` : ''}
 													</span>
-													<span class="font-semibold">
-														{cv.reserved_count}/{cv.capacity} places
+													<span class="font-bold text-emerald-700">
+														{Math.max(0, cv.capacity - cv.reserved_count)}/{cv.capacity} dispo
 													</span>
 												</div>
 											))}

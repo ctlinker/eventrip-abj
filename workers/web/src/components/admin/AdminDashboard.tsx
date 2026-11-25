@@ -34,7 +34,7 @@ export default function AdminDashboard() {
 		return (
 			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 				{[1, 2, 3, 4].map((n) => (
-					<div key={n} class="h-28 rounded-2xl bg-green-50/50 animate-pulse" />
+					<div key={n} class="h-28 rounded-2xl border border-slate-200 bg-slate-50 animate-pulse" />
 				))}
 			</div>
 		);
@@ -42,12 +42,12 @@ export default function AdminDashboard() {
 
 	const cards = [
 		{ label: 'Chiffre d’affaires confirmé', value: formatXof(kpis.confirmed_revenue_xof), highlight: true },
-		{ label: 'Paiements en attente', value: String(kpis.pending_payments), highlight: kpis.pending_payments > 0 },
+		{ label: 'Paiements en attente', value: String(kpis.pending_payments), warn: kpis.pending_payments > 0 },
 		{ label: 'Paiements confirmés', value: String(kpis.confirmed_payments) },
 		{ label: 'Total commandes', value: String(kpis.total_orders) },
-		{ label: 'Tickets générés', value: String(kpis.total_tickets) },
-		{ label: 'Tickets valides', value: String(kpis.valid_tickets) },
-		{ label: 'Tickets scannés (utilisés)', value: String(kpis.used_tickets) },
+		{ label: 'Billets générés', value: String(kpis.total_tickets) },
+		{ label: 'Billets valides', value: String(kpis.valid_tickets) },
+		{ label: 'Billets entièrement utilisés', value: String(kpis.used_tickets) },
 		{ label: 'Places convois vendues', value: String(kpis.convoy_seats_sold) },
 	];
 
@@ -56,14 +56,16 @@ export default function AdminDashboard() {
 			{cards.map((card) => (
 				<div
 					key={card.label}
-					class={`rounded-2xl border p-5 ${
+					class={`rounded-2xl border p-5 shadow-xs ${
 						card.highlight
-							? 'border-green-300 bg-green-50/70'
-							: 'border-green-100 bg-white'
+							? 'border-emerald-300 bg-emerald-50/50'
+							: card.warn
+								? 'border-amber-300 bg-amber-50/50'
+								: 'border-slate-200 bg-white'
 					}`}
 				>
-					<p class="text-xs font-semibold uppercase tracking-wide text-slate-500">{card.label}</p>
-					<p class="mt-2 text-2xl font-bold text-slate-900">{card.value}</p>
+					<p class="text-xs font-bold uppercase tracking-wide text-slate-500">{card.label}</p>
+					<p class="mt-2 text-2xl font-black tracking-tight text-slate-950">{card.value}</p>
 				</div>
 			))}
 		</div>
