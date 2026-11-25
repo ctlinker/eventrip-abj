@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { Plus, ImagePlus, X, Bus, ArrowLeft, Tag, Archive, Trash2, RotateCcw } from 'lucide-preact';
 import {
 	ABIDJAN_COMMUNES,
@@ -82,6 +82,10 @@ export default function AdminEvents() {
 	});
 	const [error, setError] = useState<string | null>(null);
 	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+	const [isCreatingEvent, setIsCreatingEvent] = useState(false);
+	const [isAddingCategory, setIsAddingCategory] = useState(false);
+	const [isAddingDeparture, setIsAddingDeparture] = useState(false);
+	const creatingEventRef = useRef(false);
 
 	function load() {
 		apiFetch<{
@@ -107,8 +111,9 @@ export default function AdminEvents() {
 	async function handleAddEventCategory(e?: Event) {
 		if (e) e.preventDefault();
 		const trimmed = newCatName.trim();
-		if (!trimmed) return;
+		if (!trimmed || isAddingCategory) return;
 		setError(null);
+		setIsAddingCategory(true);
 		try {
 			const res = await apiFetch<{ category: EventCategory }>('/api/admin/event-categories', {
 				method: 'POST',
@@ -124,17 +129,22 @@ export default function AdminEvents() {
 			setShowInlineCat(false);
 		} catch (err: any) {
 			setError(err.message);
+		} finally {
+			setIsAddingCategory(false);
 		}
 	}
 
 	async function handleCreateEvent(e: Event) {
 		e.preventDefault();
+		if (creatingEventRef.current) return;
 		setError(null);
 		const firstDep = initialDepartures[0];
 		if (!firstDep) {
 			setError('Au moins un départ initial est requis.');
 			return;
 		}
+		creatingEventRef.current = true;
+		setIsCreatingEvent(true);
 		try {
 			const created = await apiFetch<{ event: AdminEvent }>('/api/admin/events', {
 				method: 'POST',
@@ -156,46 +166,55 @@ export default function AdminEvents() {
 				}),
 			});
 
+			let partialError: string | null = null;
 			const extraConvoys: AdminEvent['convoys'] = [];
 			if (created.event?.id && initialDepartures.length > 1) {
 				for (const extra of initialDepartures.slice(1)) {
 					if (!extra.meetingPoint.trim()) continue;
-					const convRes = await apiFetch<{ convoy: AdminEvent['convoys'][number] }>(
-						`/api/admin/events/${created.event.id}/convoys`,
-						{
-							method: 'POST',
-							body: JSON.stringify({
-								name: `Départ ${extra.commune}`,
-								commune: extra.commune,
-								meeting_point: extra.meetingPoint,
-								destination: venue,
-								departure_at: new Date(extra.departureAt).toISOString(),
-								trip_type: 'round_trip',
-								price_xof: 0,
-								capacity: Number(extra.capacity) || 55,
-							}),
-						},
-					);
-					if (convRes.convoy) extraConvoys.push(convRes.convoy);
+					try {
+						const convRes = await apiFetch<{ convoy: AdminEvent['convoys'][number] }>(
+							`/api/admin/events/${created.event.id}/convoys`,
+							{
+								method: 'POST',
+								body: JSON.stringify({
+									name: `Départ ${extra.commune}`,
+									commune: extra.commune,
+									meeting_point: extra.meetingPoint,
+									destination: venue,
+									departure_at: new Date(extra.departureAt).toISOString(),
+									trip_type: 'round_trip',
+									price_xof: 0,
+									capacity: Number(extra.capacity) || 55,
+								}),
+							},
+						);
+						if (convRes.convoy) extraConvoys.push(convRes.convoy);
+					} catch (err: any) {
+						partialError = `Événement publié, mais un départ supplémentaire n'a pas pu être ajouté : ${err.message}`;
+					}
 				}
 			}
 
 			let posterKey: string | null = null;
 			let posterKeys: string[] = [];
 			if (created.event?.id && initialPhotos.length > 0) {
-				const form = new FormData();
-				for (const f of initialPhotos) {
-					form.append('files', f);
+				try {
+					const form = new FormData();
+					for (const f of initialPhotos) {
+						form.append('files', f);
+					}
+					const posterRes = await apiFetch<{ poster_key: string | null; poster_keys: string[] }>(
+						`/api/admin/events/${created.event.id}/poster`,
+						{
+							method: 'POST',
+							body: form,
+						},
+					);
+					posterKey = posterRes.poster_key;
+					posterKeys = posterRes.poster_keys;
+				} catch (err: any) {
+					partialError = `Événement publié, mais l'envoi des photos a échoué : ${err.message}`;
 				}
-				const posterRes = await apiFetch<{ poster_key: string | null; poster_keys: string[] }>(
-					`/api/admin/events/${created.event.id}/poster`,
-					{
-						method: 'POST',
-						body: form,
-					},
-				);
-				posterKey = posterRes.poster_key;
-				posterKeys = posterRes.poster_keys;
 			}
 
 			if (created.event) {
@@ -221,17 +240,23 @@ export default function AdminEvents() {
 			setInitialDepartures([
 				{ commune: 'Cocody', meetingPoint: '', departureAt: '2026-12-20T14:00', capacity: '55' },
 			]);
+			if (partialError) setError(partialError);
 			setView('list');
 		} catch (err: any) {
 			setError(err.message);
+		} finally {
+			creatingEventRef.current = false;
+			setIsCreatingEvent(false);
 		}
 	}
 
 	async function handleAddDepartureFromTab(e: Event) {
 		e.preventDefault();
+		if (isAddingDeparture) return;
 		const targetEvent = events.find((ev) => ev.id === depTabEventId) || events[0];
 		if (!targetEvent) return;
 		setError(null);
+		setIsAddingDeparture(true);
 		try {
 			const res = await apiFetch<{ convoy: AdminEvent['convoys'][number] }>(
 				`/api/admin/events/${targetEvent.id}/convoys`,
@@ -261,6 +286,8 @@ export default function AdminEvents() {
 			setDepTabForm((prev) => ({ ...prev, meetingPoint: '' }));
 		} catch (err: any) {
 			setError(err.message);
+		} finally {
+			setIsAddingDeparture(false);
 		}
 	}
 
@@ -628,10 +655,11 @@ export default function AdminEvents() {
 
 									<button
 										type="submit"
-										class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 cursor-pointer shadow-xs"
+										disabled={isAddingDeparture}
+										class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-xs"
 									>
 										<Plus class="h-4 w-4" />
-										Ajouter ce départ
+										{isAddingDeparture ? 'Ajout...' : 'Ajouter ce départ'}
 									</button>
 								</div>
 							</>
@@ -719,14 +747,21 @@ export default function AdminEvents() {
 										placeholder="Nom nouvelle catégorie"
 										value={newCatName}
 										onInput={(e) => setNewCatName((e.target as HTMLInputElement).value)}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter') {
+												e.preventDefault();
+												handleAddEventCategory();
+											}
+										}}
 										class="flex-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs"
 									/>
 									<button
 										type="button"
+										disabled={isAddingCategory}
 										onClick={() => handleAddEventCategory()}
-										class="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white cursor-pointer"
+										class="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
 									>
-										Créer
+										{isAddingCategory ? '...' : 'Créer'}
 									</button>
 								</div>
 							)}
@@ -937,17 +972,19 @@ export default function AdminEvents() {
 					<div class="flex flex-wrap items-center justify-end gap-3 pt-2">
 						<button
 							type="button"
+							disabled={isCreatingEvent}
 							onClick={() => setView('list')}
-							class="rounded-xl border border-green-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-green-50 cursor-pointer"
+							class="rounded-xl border border-green-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-green-50 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
 						>
 							Annuler
 						</button>
 						<button
 							type="submit"
-							class="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 cursor-pointer"
+							disabled={isCreatingEvent}
+							class="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
 						>
 							<Plus class="h-4 w-4" />
-							Publier l'événement
+							{isCreatingEvent ? 'Publication en cours...' : "Publier l'événement"}
 						</button>
 					</div>
 				</form>

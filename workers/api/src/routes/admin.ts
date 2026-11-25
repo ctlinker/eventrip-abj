@@ -174,11 +174,13 @@ adminRoutes.post('/events', async (c) => {
 		);
 
 	const dep = body.initial_departure;
+	const cleanTitle = body.title?.trim() || '';
+	const cleanVenue = body.venue?.trim() || '';
 	if (
-		!body.title ||
+		!cleanTitle ||
 		!body.description ||
 		!body.starts_at ||
-		!body.venue ||
+		!cleanVenue ||
 		!Number.isInteger(body.price_xof) ||
 		(body.price_xof as number) < 0 ||
 		!dep?.commune?.trim() ||
@@ -197,35 +199,69 @@ adminRoutes.post('/events', async (c) => {
 	const id = crypto.randomUUID();
 	const convoyId = crypto.randomUUID();
 	const now = nowIso();
-	const baseSlug = slugify(body.slug || body.title) || id.slice(0, 8);
+	const recentCutoff = new Date(Date.now() - 60_000).toISOString();
+	const baseSlug = slugify(body.slug || cleanTitle) || id.slice(0, 8);
 	const slug = `${baseSlug}-${id.slice(0, 4)}`;
 	const capacity =
 		Number.isInteger(dep.capacity) && (dep.capacity as number) > 0 ? dep.capacity! : 55;
 	const db = getDB(c.env.DB);
 
-	await db
-		.insertInto('events')
-		.values({
-			id,
-			slug,
-			title: body.title.trim(),
-			description: body.description,
-			poster_key: null,
-			starts_at: body.starts_at,
-			ends_at: body.ends_at ?? null,
-			venue: body.venue.trim(),
-			price_xof: body.price_xof!,
-			category_id: body.category_id ?? null,
-			extra_info: body.extra_info ?? null,
-			wave_payment_url: body.wave_payment_url ?? null,
-			sales_start_at: body.sales_start_at ?? null,
-			sales_end_at: body.sales_end_at ?? null,
-			status: body.status ?? 'draft',
-			created_by: user.id,
-			created_at: now,
-			updated_at: now,
-		})
-		.execute();
+	// Insertion atomique bloquant tout double-publish identique dans la fenêtre de 60s
+	const insertRes = await tryCatch(
+		c.env.DB.prepare(
+			`INSERT INTO events (
+				id, slug, title, description, poster_key, starts_at, ends_at,
+				venue, price_xof, category_id, extra_info, wave_payment_url,
+				sales_start_at, sales_end_at, status, created_by, created_at, updated_at
+			)
+			SELECT ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+			WHERE NOT EXISTS (
+				SELECT 1 FROM events
+				WHERE created_by = ?
+				  AND LOWER(TRIM(title)) = LOWER(?)
+				  AND starts_at = ?
+				  AND LOWER(TRIM(venue)) = LOWER(?)
+				  AND created_at >= ?
+			)
+			RETURNING id`,
+		)
+			.bind(
+				id,
+				slug,
+				cleanTitle,
+				body.description,
+				body.starts_at,
+				body.ends_at ?? null,
+				cleanVenue,
+				body.price_xof!,
+				body.category_id ?? null,
+				body.extra_info ?? null,
+				body.wave_payment_url ?? null,
+				body.sales_start_at ?? null,
+				body.sales_end_at ?? null,
+				body.status ?? 'draft',
+				user.id,
+				now,
+				now,
+				user.id,
+				cleanTitle,
+				body.starts_at,
+				cleanVenue,
+				recentCutoff,
+			)
+			.first<{ id: string }>(),
+	);
+
+	if (!insertRes.ok) {
+		if (isUniqueConstraintError(insertRes.error)) {
+			return c.json({ error: 'Un événement avec ce slug existe déjà' }, 409);
+		}
+		return c.json({ error: 'Erreur lors de la création de l’événement' }, 500);
+	}
+
+	if (!insertRes.data) {
+		return c.json({ error: 'Cet événement vient déjà d’être publié.' }, 409);
+	}
 
 	await db
 		.insertInto('convoys')
@@ -236,7 +272,7 @@ adminRoutes.post('/events', async (c) => {
 			commune: dep.commune.trim(),
 			departure_at: dep.departure_at,
 			meeting_point: dep.meeting_point.trim(),
-			destination: body.venue.trim(),
+			destination: cleanVenue,
 			trip_type: 'round_trip',
 			price_xof: 0,
 			capacity,

@@ -429,6 +429,26 @@ describe('Eventrip API Core', () => {
 		expect(emptyEvRes.status).toBe(201);
 		const emptyEvId = ((await emptyEvRes.json()) as { event: { id: string } }).event.id;
 
+		// Double-publish immédiat bloqué (409)
+		const dupPublishRes = await SELF.fetch('https://example.com/api/admin/events', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({
+				title: 'Événement temporaire',
+				description: 'Test suppression & archivage',
+				starts_at: '2026-12-28T18:00:00Z',
+				venue: 'Plateau',
+				price_xof: 5000,
+				status: 'published',
+				initial_departure: {
+					commune: 'Plateau',
+					meeting_point: 'Place République',
+					departure_at: '2026-12-28T15:00:00Z',
+				},
+			}),
+		});
+		expect(dupPublishRes.status).toBe(409);
+
 		const archiveRes = await SELF.fetch(`https://example.com/api/admin/events/${emptyEvId}`, {
 			method: 'PATCH',
 			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
