@@ -140,7 +140,8 @@ export default function EventsCatalog() {
 								<span class="text-brand-600">prochaine grande sortie</span>.
 							</h1>
 							<p class="max-w-xl text-base sm:text-lg text-slate-600">
-								Réservez l’accès à l’événement et votre convoi aller-retour depuis votre commune, au même endroit.
+								Réservez une place dans l’un de nos véhicules, nous assurons votre transport aller-retour vers un événement{' '}
+								<span class="font-bold text-navy-950">(DONT VOUS AVEZ ACHETÉ LE TICKET)</span>.
 							</p>
 
 							{/* Barre de recherche segmentée flottante (1.jpg & 2.jpg) */}
