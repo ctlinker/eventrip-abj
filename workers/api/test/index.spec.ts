@@ -449,6 +449,44 @@ describe('Eventrip API Core', () => {
 		});
 		expect(dupPublishRes.status).toBe(409);
 
+		// Inscription avec commune optionnelle + erreur 409 téléphone déjà existant
+		const communeSignup = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				name: 'Client Commune',
+				email: 'client.commune@eventrip.ci',
+				password: 'Password123!',
+				phone: '+2250709090909',
+				commune: 'Yopougon',
+			}),
+		});
+		expect(communeSignup.status).toBe(200);
+
+		const dupPhoneSignup = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				name: 'Autre Client',
+				email: 'client.other@eventrip.ci',
+				password: 'Password123!',
+				phone: '+2250709090909',
+				commune: 'Cocody',
+			}),
+		});
+		expect(dupPhoneSignup.status).toBe(409);
+
+		// Vérifier enrichissement event_title dans GET /api/orders
+		const ordersListRes = await SELF.fetch('https://example.com/api/orders', {
+			headers: { Cookie: clientCookie },
+		});
+		expect(ordersListRes.status).toBe(200);
+		const ordersListData = (await ordersListRes.json()) as {
+			orders: Array<{ id: string; event_title: string | null }>;
+		};
+		expect(ordersListData.orders.length).toBeGreaterThan(0);
+		expect(ordersListData.orders[0].event_title).toBeTruthy();
+
 		const archiveRes = await SELF.fetch(`https://example.com/api/admin/events/${emptyEvId}`, {
 			method: 'PATCH',
 			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { getAuth } from 'db';
+import { tryCatch } from 'utils';
 import { maybeBootstrapSuperAdmin } from './lib/bootstrap';
 import { requireAuth } from './middleware/auth';
 import { publicRoutes } from './routes/public';
@@ -27,6 +28,24 @@ app.get('/api/health', (c) => {
 });
 
 app.all('/api/auth/*', async (c) => {
+	if (c.req.method === 'POST' && c.req.path === '/api/auth/sign-up/email') {
+		const bodyRes = await tryCatch(
+			c.req.raw.clone().json() as Promise<{ phone?: string; email?: string }>,
+		);
+		const phone = bodyRes.ok ? bodyRes.data?.phone?.trim() : '';
+		if (phone) {
+			const dupRes = await tryCatch(
+				c.env.DB.prepare('SELECT id FROM "user" WHERE phone = ? LIMIT 1')
+					.bind(phone)
+					.first<{ id: string }>(),
+			);
+			if (dupRes.ok && dupRes.data) {
+				const msg = 'Ce numéro de téléphone est déjà associé à un autre compte.';
+				return c.json({ error: msg, message: msg, code: 'PHONE_ALREADY_EXISTS' }, 409);
+			}
+		}
+	}
+
 	const auth = getAuth(c.env.DB);
 	const res = await auth.handler(c.req.raw);
 	if (

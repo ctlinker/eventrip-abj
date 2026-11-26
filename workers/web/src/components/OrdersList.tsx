@@ -9,6 +9,10 @@ interface OrderSummary {
 	status: string;
 	expires_at: string;
 	created_at: string;
+	event_title?: string | null;
+	event_slug?: string | null;
+	convoy_commune?: string | null;
+	ticket_count?: number;
 }
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
@@ -70,14 +74,21 @@ export default function OrdersList() {
 						href={`/orders/${order.id}`}
 						class="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 hover:border-slate-300 hover:shadow-xs transition-all"
 					>
-						<div>
-							<div class="flex flex-wrap items-center gap-2.5">
-								<span class="font-mono text-sm font-bold text-slate-950">{order.reference}</span>
+						<div class="min-w-0">
+							{order.event_title && (
+								<p class="font-bold text-slate-950 truncate">{order.event_title}</p>
+							)}
+							<div class="mt-0.5 flex flex-wrap items-center gap-2.5">
+								<span class="font-mono text-xs sm:text-sm font-bold text-slate-800">{order.reference}</span>
 								<span class={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${badge.cls}`}>
 									{badge.label}
 								</span>
 							</div>
-							<p class="mt-1 text-xs text-slate-500">Créée le {formatDate(order.created_at)}</p>
+							<p class="mt-1 text-xs text-slate-500">
+								{order.convoy_commune ? `Départ ${order.convoy_commune} • ` : ''}
+								{order.ticket_count ? `${order.ticket_count} billet(s) • ` : ''}
+								Créée le {formatDate(order.created_at)}
+							</p>
 						</div>
 						<div class="flex items-center gap-4">
 							<span class="text-base font-black text-slate-950">

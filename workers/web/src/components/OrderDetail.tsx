@@ -16,12 +16,21 @@ interface OrderDetailResponse {
 		expires_at: string;
 		created_at: string;
 	};
+	event?: {
+		id: string;
+		title: string;
+		slug: string;
+		venue: string;
+		starts_at: string;
+	} | null;
 	items: Array<{
 		id: string;
 		item_type: string;
 		quantity: number;
 		unit_price_xof: number;
 		subtotal_xof: number;
+		convoy_commune?: string | null;
+		convoy_meeting_point?: string | null;
 	}>;
 	payment: {
 		id: string;
@@ -172,14 +181,15 @@ export default function OrderDetail({ orderId }: Props) {
 		);
 	}
 
-	const { order, items, payment, tickets } = data;
+	const { order, event, items, payment, tickets } = data;
+	const firstConvoy = items.find((it) => it.convoy_commune);
 
 	return (
 		<div class="space-y-6">
 			<div class="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
-				<div class="flex flex-wrap items-center justify-between gap-4">
+				<div class="flex flex-wrap items-start justify-between gap-4">
 					<div>
-						<div class="flex items-center gap-2">
+						<div class="flex flex-wrap items-center gap-2">
 							<p class="font-mono text-xs font-bold uppercase tracking-wide text-emerald-600">
 								{order.reference}
 							</p>
@@ -192,25 +202,36 @@ export default function OrderDetail({ orderId }: Props) {
 								{copied ? <Check class="h-3 w-3 text-emerald-600" /> : <Copy class="h-3 w-3" />}
 								<span>{copied ? 'Copié' : 'Copier'}</span>
 							</button>
+							{order.status === 'pending_payment' && (
+								<span class="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-800">
+									En attente de paiement
+								</span>
+							)}
 						</div>
 						<h1 class="mt-1.5 text-2xl sm:text-3xl font-black tracking-tight text-slate-950">
 							{formatXof(order.total_amount_xof)}
 						</h1>
+						{event && (
+							<p class="mt-1.5 text-sm font-bold text-slate-800">
+								{event.title}
+								{firstConvoy?.convoy_commune ? ` • Départ ${firstConvoy.convoy_commune}` : ''}
+							</p>
+						)}
 						<p class="mt-1 text-xs text-slate-500">Créée le {formatDate(order.created_at)}</p>
 					</div>
 
 					{order.status === 'pending_payment' && (
 						<div class="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-800">
-							<Clock class="h-4 w-4" />
+							<Clock class="h-4 w-4 shrink-0" />
 							<span>Expire dans : {remainingText}</span>
 						</div>
 					)}
 
 					{order.status === 'under_review' && (
 						<div class="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">
-							<Clock class="h-4 w-4" />
+							<Clock class="h-4 w-4 shrink-0" />
 							<span>
-								En cours de vérification
+								Vérification en cours
 								{payment?.wave_transaction_ref ? ` (${payment.wave_transaction_ref})` : ''}
 							</span>
 						</div>
@@ -391,11 +412,21 @@ export default function OrderDetail({ orderId }: Props) {
 				<h3 class="font-bold text-slate-950 mb-3">Détail de la réservation</h3>
 				<div class="divide-y divide-slate-100 text-sm">
 					{items.map((item) => (
-						<div key={item.id} class="py-2.5 flex justify-between">
-							<span class="text-slate-600">
-								Billet événement + convoi aller-retour × {item.quantity}
+						<div key={item.id} class="py-2.5 flex items-baseline justify-between gap-4">
+							<div class="min-w-0">
+								<span class="text-slate-700 font-medium">
+									{event?.title ? `${event.title} — ` : ''}Billet + convoi aller-retour × {item.quantity}
+								</span>
+								{item.convoy_commune && (
+									<p class="text-xs text-slate-500 mt-0.5">
+										Départ {item.convoy_commune}
+										{item.convoy_meeting_point ? ` (${item.convoy_meeting_point})` : ''}
+									</p>
+								)}
+							</div>
+							<span class="shrink-0 whitespace-nowrap font-bold text-slate-950">
+								{formatXof(item.subtotal_xof)}
 							</span>
-							<span class="font-bold text-slate-950">{formatXof(item.subtotal_xof)}</span>
 						</div>
 					))}
 				</div>

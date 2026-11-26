@@ -5,16 +5,29 @@ interface Props {
 	urls: string[];
 	alt: string;
 	aspectClass?: string;
+	href?: string;
 }
 
-export default function EventImageCarousel({ urls, alt, aspectClass = 'aspect-[16/10]' }: Props) {
+export default function EventImageCarousel({
+	urls,
+	alt,
+	aspectClass = 'aspect-[16/10]',
+	href,
+}: Props) {
 	const [index, setIndex] = useState(0);
 
 	if (urls.length === 0) {
-		return (
+		const placeholder = (
 			<div class={`relative ${aspectClass} w-full bg-slate-50 bg-hatched-green flex items-center justify-center overflow-hidden`}>
 				<Ticket class="h-12 w-12 text-emerald-600/50" />
 			</div>
+		);
+		return href ? (
+			<a href={href} class="block w-full min-w-0">
+				{placeholder}
+			</a>
+		) : (
+			placeholder
 		);
 	}
 
@@ -32,21 +45,31 @@ export default function EventImageCarousel({ urls, alt, aspectClass = 'aspect-[1
 		setIndex((i) => (i + 1) % urls.length);
 	}
 
+	const track = (
+		<div
+			class="flex h-full w-full transition-transform duration-300 ease-out"
+			style={{ transform: `translateX(-${safeIndex * 100}%)` }}
+		>
+			{urls.map((url, idx) => (
+				<img
+					key={url}
+					src={url}
+					alt={`${alt} (${idx + 1}/${urls.length})`}
+					class="h-full w-full shrink-0 object-cover"
+				/>
+			))}
+		</div>
+	);
+
 	return (
 		<div class={`relative ${aspectClass} w-full min-w-0 bg-slate-100 overflow-hidden group/carousel`}>
-			<div
-				class="flex h-full w-full transition-transform duration-300 ease-out"
-				style={{ transform: `translateX(-${safeIndex * 100}%)` }}
-			>
-				{urls.map((url, idx) => (
-					<img
-						key={url}
-						src={url}
-						alt={`${alt} (${idx + 1}/${urls.length})`}
-						class="h-full w-full shrink-0 object-cover"
-					/>
-				))}
-			</div>
+			{href ? (
+				<a href={href} class="block h-full w-full" aria-label={alt}>
+					{track}
+				</a>
+			) : (
+				track
+			)}
 
 			{urls.length > 1 && (
 				<>

@@ -97,7 +97,7 @@ export default function AdminScanner() {
 	return (
 		<div class="mx-auto max-w-xl space-y-6">
 			<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
-				<div class="flex items-center justify-between">
+				<div class="flex flex-wrap items-center justify-between gap-2">
 					<h2 class="flex items-center gap-2 text-lg font-extrabold text-slate-950">
 						<QrCode class="h-5 w-5 text-emerald-600" />
 						Contrôle d’accès QR
@@ -105,7 +105,7 @@ export default function AdminScanner() {
 					<button
 						type="button"
 						onClick={() => setCameraActive(!cameraActive)}
-						class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100 cursor-pointer"
+						class="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100 cursor-pointer"
 					>
 						<Camera class="h-4 w-4 text-emerald-600" />
 						{cameraActive ? 'Arrêter caméra' : 'Activer caméra'}

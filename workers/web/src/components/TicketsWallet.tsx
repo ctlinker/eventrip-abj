@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import QRCode from 'qrcode';
 import { Ticket, Calendar, MapPin, Bus, Lock, Download, FileText, QrCode, X } from 'lucide-preact';
 import { apiFetch, formatDate, formatXof } from '../lib/api';
@@ -29,6 +29,24 @@ interface WalletTicket {
 
 function QrModal({ ticket, onClose }: { ticket: WalletTicket; onClose: () => void }) {
 	const [src, setSrc] = useState<string>('');
+	const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+	useEffect(() => {
+		const previousFocus = document.activeElement as HTMLElement | null;
+		closeBtnRef.current?.focus();
+
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				onClose();
+			}
+		};
+		window.addEventListener('keydown', handleKeyDown);
+
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
+			previousFocus?.focus?.();
+		};
+	}, [onClose]);
 
 	useEffect(() => {
 		if (!ticket.qr_token) return;
@@ -47,20 +65,26 @@ function QrModal({ ticket, onClose }: { ticket: WalletTicket; onClose: () => voi
 			onClick={onClose}
 		>
 			<div
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby={`qr-modal-title-${ticket.id}`}
 				class="relative w-full max-w-sm rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-xl"
 				onClick={(e) => e.stopPropagation()}
 			>
 				<button
+					ref={closeBtnRef}
 					type="button"
 					onClick={onClose}
 					aria-label="Fermer"
-					class="absolute top-4 right-4 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer"
+					class="absolute top-4 right-4 flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer"
 				>
 					<X class="h-4 w-4" />
 				</button>
 
 				<p class="font-mono text-xs font-bold text-emerald-600">{ticket.code}</p>
-				<h3 class="mt-1 text-lg font-extrabold text-slate-950">{ticket.event_title}</h3>
+				<h3 id={`qr-modal-title-${ticket.id}`} class="mt-1 text-lg font-extrabold text-slate-950">
+					{ticket.event_title}
+				</h3>
 				<p class="text-xs text-slate-500">
 					{ticket.convoy_commune ? `Départ ${ticket.convoy_commune}` : ticket.event_venue}
 				</p>

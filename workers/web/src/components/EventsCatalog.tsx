@@ -79,14 +79,29 @@ export default function EventsCatalog() {
 	}
 
 	const q = searchQuery.trim().toLowerCase();
-	const filteredEvents = events.filter((ev) => {
+	const matchedEvents = events.filter((ev) => {
 		if (selectedCategoryId && ev.category_id !== selectedCategoryId) return false;
 		if (q) {
-			const hay = `${ev.title} ${ev.venue} ${ev.category_name || ''}`.toLowerCase();
+			const hay = `${ev.title} ${ev.venue} ${ev.description || ''} ${ev.category_name || ''}`.toLowerCase();
 			if (!hay.includes(q)) return false;
 		}
 		return true;
 	});
+
+	const normalizedCommune = commune.trim().toLowerCase();
+	const filteredEvents = normalizedCommune
+		? [...matchedEvents].sort((a, b) => {
+				const score = (ev: PublicEvent) => {
+					const matching = ev.convoys.filter(
+						(cv) => (cv.commune || '').trim().toLowerCase() === normalizedCommune,
+					);
+					if (matching.some((cv) => cv.remaining > 0)) return 0;
+					if (matching.length > 0) return 1;
+					return 2;
+				};
+				return score(a) - score(b);
+			})
+		: matchedEvents;
 
 	function scrollToGrid(e: Event) {
 		e.preventDefault();
@@ -127,27 +142,31 @@ export default function EventsCatalog() {
 								onSubmit={scrollToGrid}
 								class="mt-6 flex flex-col gap-2 rounded-2xl border border-slate-200/90 bg-white p-2 shadow-lg shadow-slate-200/50 sm:flex-row sm:items-center"
 							>
-								<div class="flex flex-1 min-w-0 items-center gap-2 px-3 py-2">
+								<div class="flex flex-1 min-w-[185px] items-center gap-2 px-3 py-2">
 									<Search class="h-4 w-4 text-slate-400 shrink-0" />
 									<input
+										id="catalog-search"
+										name="q"
 										type="text"
 										aria-label="Rechercher un événement"
 										placeholder="Rechercher un événement, lieu..."
 										value={searchQuery}
 										onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
-										class="w-full bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+										class="w-full min-w-0 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
 									/>
 								</div>
 
-								<div class="hidden sm:block h-6 w-px bg-slate-200" aria-hidden="true" />
+								<div class="hidden sm:block h-6 w-px bg-slate-200 shrink-0" aria-hidden="true" />
 
-								<div class="flex items-center gap-1.5 px-3 py-2 sm:w-44">
+								<div class="flex items-center gap-1.5 px-2.5 py-2 sm:w-36 shrink-0">
 									<MapPin class="h-4 w-4 text-emerald-600 shrink-0" />
 									<select
+										id="catalog-commune"
+										name="commune"
 										aria-label="Commune de départ"
 										value={commune}
 										onChange={(e) => handleCommuneChange((e.target as HTMLSelectElement).value)}
-										class="w-full bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer"
+										class="w-full min-w-0 bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer"
 									>
 										<option value="">Départ (tous)</option>
 										{ABIDJAN_COMMUNES.map((c) => (
@@ -158,17 +177,19 @@ export default function EventsCatalog() {
 									</select>
 								</div>
 
-								<div class="hidden sm:block h-6 w-px bg-slate-200" aria-hidden="true" />
+								<div class="hidden sm:block h-6 w-px bg-slate-200 shrink-0" aria-hidden="true" />
 
-								<div class="flex items-center gap-1.5 px-3 py-2 sm:w-44">
+								<div class="flex items-center gap-1.5 px-2.5 py-2 sm:w-36 shrink-0">
 									<Tag class="h-4 w-4 text-slate-400 shrink-0" />
 									<select
+										id="catalog-category"
+										name="category_id"
 										aria-label="Catégorie d'événement"
 										value={selectedCategoryId}
 										onChange={(e) =>
 											setSelectedCategoryId((e.target as HTMLSelectElement).value)
 										}
-										class="w-full bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer"
+										class="w-full min-w-0 bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer"
 									>
 										<option value="">Catégorie</option>
 										{eventCategories.map((cat) => (
@@ -217,6 +238,7 @@ export default function EventsCatalog() {
 						<div class="flex flex-wrap items-center gap-1.5">
 							<button
 								type="button"
+								aria-pressed={selectedCategoryId === ''}
 								onClick={() => setSelectedCategoryId('')}
 								class={`rounded-full px-3.5 py-1.5 text-xs font-bold border transition-colors cursor-pointer ${
 									selectedCategoryId === ''
@@ -230,6 +252,7 @@ export default function EventsCatalog() {
 								<button
 									key={cat.id}
 									type="button"
+									aria-pressed={selectedCategoryId === cat.id}
 									onClick={() => setSelectedCategoryId(cat.id)}
 									class={`rounded-full px-3.5 py-1.5 text-xs font-bold border transition-colors cursor-pointer ${
 										selectedCategoryId === cat.id
@@ -289,11 +312,24 @@ export default function EventsCatalog() {
 										: null;
 							const posterUrls = getEventPosterUrls(event);
 
+							const communeCounts = new Map<string, number>();
+							for (const cv of prioritizedConvoys) {
+								const key = (cv.commune || cv.name).trim().toLowerCase();
+								communeCounts.set(key, (communeCounts.get(key) || 0) + 1);
+							}
+
 							const renderChips = (copyKey: string) =>
 								prioritizedConvoys.map((cv) => {
 									const isMatch =
 										Boolean(commune) &&
 										(cv.commune || '').toLowerCase() === commune.toLowerCase();
+									const baseLabel = cv.commune || cv.name;
+									const hasMultipleInCommune =
+										(communeCounts.get(baseLabel.trim().toLowerCase()) || 0) > 1;
+									const label =
+										hasMultipleInCommune && cv.meeting_point
+											? `${baseLabel} (${cv.meeting_point})`
+											: baseLabel;
 									return (
 										<span
 											key={`${copyKey}-${cv.id}`}
@@ -307,13 +343,14 @@ export default function EventsCatalog() {
 												class={`h-3 w-3 ${isMatch ? 'text-white' : 'text-emerald-600'}`}
 											/>
 											<span>
-												{cv.commune || cv.name} • {cv.remaining}/{cv.capacity} dispo
+												{label} • {cv.remaining}/{cv.capacity} dispo
 											</span>
 										</span>
 									);
 								});
 
 							const isSaved = wishlistIds.has(event.id);
+							const eventHref = `/events/${event.slug}`;
 
 							return (
 								<div key={event.id} class="relative pt-3.5 flex flex-col min-w-0 max-w-full">
@@ -339,65 +376,65 @@ export default function EventsCatalog() {
 										<Heart class={`h-4 w-4 ${isSaved ? 'fill-red-500 text-red-500' : ''}`} />
 									</button>
 
-									<a
-										href={`/events/${event.slug}`}
-										class="group flex flex-1 flex-col min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:border-slate-300 hover:shadow-md transition-all"
-									>
+									<div class="group flex flex-1 flex-col min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:border-slate-300 hover:shadow-md transition-all">
 										<EventImageCarousel
 											urls={posterUrls}
 											alt={event.title}
 											aspectClass="aspect-[16/10]"
+											href={eventHref}
 										/>
 
-										{/* Bandeau horizontal des départs sous l'image (2.jpg + marquee déterministe) */}
-										{prioritizedConvoys.length > 0 && (
-											<div class="w-full min-w-0 overflow-hidden border-y border-slate-100 bg-slate-50/90 py-2 px-3">
-												{prioritizedConvoys.length === 1 ? (
-													<div class="flex items-center gap-2">
-														{renderChips('single')}
-													</div>
-												) : (
-													<div class="animate-departure-marquee gap-2">
-														<div class="flex items-center gap-2 pr-2">
-															{renderChips('a')}
+										<a href={eventHref} class="flex flex-1 flex-col min-w-0 w-full">
+											{/* Bandeau horizontal des départs sous l'image (2.jpg + marquee déterministe) */}
+											{prioritizedConvoys.length > 0 && (
+												<div class="w-full min-w-0 overflow-hidden border-y border-slate-100 bg-slate-50/90 py-2 px-3">
+													{prioritizedConvoys.length === 1 ? (
+														<div class="flex items-center gap-2">
+															{renderChips('single')}
 														</div>
-														<div
-															class="flex items-center gap-2 pr-2"
-															aria-hidden="true"
-														>
-															{renderChips('b')}
-														</div>
-													</div>
-												)}
-											</div>
-										)}
-
-										<div class="flex flex-1 flex-col p-5">
-											<h3 class="text-lg font-bold text-slate-950 group-hover:text-emerald-700 transition-colors leading-snug">
-												{event.title}
-											</h3>
-											<p class="mt-1.5 text-xs font-medium text-slate-500 truncate">
-												{formatDate(event.starts_at)} • {event.venue}
-											</p>
-
-											<div class="mt-auto pt-5 flex items-center justify-between gap-3">
-												<div>
-													{displayPrice !== null ? (
-														<p class="text-xl font-black tracking-tight text-slate-950">
-															{formatXof(displayPrice)}
-														</p>
 													) : (
-														<p class="text-sm font-medium text-slate-500">
-															Tarif à venir
-														</p>
+														<div class="animate-departure-marquee gap-2">
+															<div class="flex items-center gap-2 pr-2">
+																{renderChips('a')}
+															</div>
+															<div
+																class="flex items-center gap-2 pr-2"
+																aria-hidden="true"
+															>
+																{renderChips('b')}
+															</div>
+														</div>
 													)}
 												</div>
-												<span class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs group-hover:bg-emerald-700 transition-colors">
-													Réserver
-												</span>
+											)}
+
+											<div class="flex flex-1 flex-col p-5">
+												<h3 class="text-lg font-bold text-slate-950 group-hover:text-emerald-700 transition-colors leading-snug">
+													{event.title}
+												</h3>
+												<p class="mt-1.5 text-xs font-medium text-slate-500 truncate">
+													{formatDate(event.starts_at)} • {event.venue}
+												</p>
+
+												<div class="mt-auto pt-5 flex items-center justify-between gap-3">
+													<div>
+														{displayPrice !== null ? (
+															<p class="text-xl font-black tracking-tight text-slate-950">
+																{formatXof(displayPrice)}
+															</p>
+														) : (
+															<p class="text-sm font-medium text-slate-500">
+																Tarif à venir
+															</p>
+														)}
+													</div>
+													<span class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs group-hover:bg-emerald-700 transition-colors">
+														Réserver
+													</span>
+												</div>
 											</div>
-										</div>
-									</a>
+										</a>
+									</div>
 								</div>
 							);
 						})}

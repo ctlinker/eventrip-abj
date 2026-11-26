@@ -22,16 +22,19 @@ interface AuditRow {
 export default function AdminUsers() {
 	const [users, setUsers] = useState<UserRow[]>([]);
 	const [logs, setLogs] = useState<AuditRow[]>([]);
+	const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	function load() {
 		Promise.all([
 			apiFetch<{ users: UserRow[] }>('/api/super-admin/users'),
 			apiFetch<{ logs: AuditRow[] }>('/api/super-admin/audit-logs'),
+			apiFetch<{ user?: { id: string } } | null>('/api/auth/get-session').catch(() => null),
 		])
-			.then(([u, l]) => {
+			.then(([u, l, me]) => {
 				setUsers(u.users);
 				setLogs(l.logs);
+				setCurrentUserId(me?.user?.id ?? null);
 			})
 			.catch((err) => setError(err.message));
 	}
@@ -87,10 +90,18 @@ export default function AdminUsers() {
 							}
 						})();
 						const canVerify = perms.includes('payments:verify');
+						const isSelf = currentUserId === u.id;
 						return (
 							<div key={u.id} class="py-3.5 flex flex-wrap items-center justify-between gap-4 text-sm">
 								<div>
-									<p class="font-bold text-slate-950">{u.name}</p>
+									<p class="font-bold text-slate-950 flex items-center gap-2">
+										<span>{u.name}</span>
+										{isSelf && (
+											<span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+												Vous
+											</span>
+										)}
+									</p>
 									<p class="text-xs text-slate-500">
 										{u.email} {u.phone ? `• ${u.phone}` : ''}
 									</p>
@@ -98,11 +109,17 @@ export default function AdminUsers() {
 								<div class="flex flex-wrap items-center gap-2">
 									<select
 										aria-label={`Rôle de ${u.name}`}
+										disabled={isSelf}
+										title={
+											isSelf
+												? 'Votre propre rôle est protégé'
+												: `Modifier le rôle de ${u.name}`
+										}
 										value={u.role}
 										onChange={(e) =>
 											updateUser(u.id, { role: (e.target as HTMLSelectElement).value })
 										}
-										class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:border-emerald-600 focus:outline-none"
+										class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:border-emerald-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<option value="client">Client</option>
 										<option value="admin">Admin</option>
@@ -129,8 +146,12 @@ export default function AdminUsers() {
 
 									<button
 										type="button"
+										disabled={isSelf}
+										title={isSelf ? 'Vous ne pouvez pas désactiver votre propre compte' : undefined}
 										onClick={() => updateUser(u.id, { is_active: u.is_active ? 0 : 1 })}
-										class={`rounded-lg px-2.5 py-1.5 text-xs font-bold border cursor-pointer ${
+										class={`rounded-lg px-2.5 py-1.5 text-xs font-bold border ${
+											isSelf ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+										} ${
 											u.is_active
 												? 'bg-emerald-50 text-emerald-700 border-emerald-200'
 												: 'bg-red-50 text-red-700 border-red-200'

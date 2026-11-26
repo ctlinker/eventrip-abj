@@ -22,6 +22,11 @@ interface AdminEvent {
 	poster_key: string | null;
 	poster_keys?: string[];
 	status: 'draft' | 'published' | 'archived';
+	categories?: Array<{
+		id: string;
+		name: string;
+		price_xof: number;
+	}>;
 	convoys: Array<{
 		id: string;
 		name: string;
@@ -81,6 +86,7 @@ export default function AdminEvents() {
 		capacity: '55',
 	});
 	const [error, setError] = useState<string | null>(null);
+	const [loading, setLoading] = useState(true);
 	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 	const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 	const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -88,6 +94,7 @@ export default function AdminEvents() {
 	const creatingEventRef = useRef(false);
 
 	function load() {
+		setLoading(true);
 		apiFetch<{
 			default_wave_merchant_id?: string;
 			event_categories?: EventCategory[];
@@ -101,7 +108,8 @@ export default function AdminEvents() {
 					setDepTabEventId(res.events[0].id);
 				}
 			})
-			.catch((err) => setError(err.message));
+			.catch((err) => setError(err.message))
+			.finally(() => setLoading(false));
 	}
 
 	useEffect(() => {
@@ -423,7 +431,7 @@ export default function AdminEvents() {
 								: 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
 						}`}
 					>
-						Événements ({events.length})
+						Événements ({loading ? '…' : events.length})
 					</button>
 					<button
 						type="button"
@@ -743,6 +751,9 @@ export default function AdminEvents() {
 							{showInlineCat && (
 								<div class="mt-2 flex gap-2">
 									<input
+										id="inline-new-category"
+										name="inline_new_category"
+										aria-label="Nom nouvelle catégorie"
 										type="text"
 										placeholder="Nom nouvelle catégorie"
 										value={newCatName}
@@ -992,7 +1003,13 @@ export default function AdminEvents() {
 
 			{view === 'list' && (
 				<div class="space-y-4">
-					{events.length === 0 ? (
+					{loading ? (
+						<div class="space-y-4">
+							{[1, 2].map((n) => (
+								<div key={n} class="h-44 rounded-2xl border border-slate-200 bg-slate-50 animate-pulse" />
+							))}
+						</div>
+					) : events.length === 0 ? (
 						<div class="rounded-2xl border border-green-100 bg-green-50/30 p-10 text-center space-y-3">
 							<p class="font-semibold text-slate-900">Aucun événement créé pour le moment</p>
 							<button
@@ -1007,11 +1024,17 @@ export default function AdminEvents() {
 					) : (
 						events.map((ev) => {
 							const merchant = ev.wave_payment_url || defaultMerchantId;
+							const effectivePrice =
+								ev.price_xof > 0
+									? ev.price_xof
+									: ev.categories && ev.categories.length > 0
+										? Math.min(...ev.categories.map((c) => c.price_xof))
+										: 0;
 							const previewUrl =
-								merchant && ev.price_xof > 0
+								merchant && effectivePrice > 0
 									? merchant.startsWith('http')
-										? `${merchant}?amount=${ev.price_xof}`
-										: `https://pay.wave.com/m/${merchant}/c/ci?amount=${ev.price_xof}`
+										? `${merchant}?amount=${effectivePrice}`
+										: `https://pay.wave.com/m/${merchant}/c/ci?amount=${effectivePrice}`
 									: null;
 							const hasBookings = ev.convoys.some((cv) => cv.reserved_count > 0);
 							const statusLabel =
@@ -1042,7 +1065,7 @@ export default function AdminEvents() {
 													</span>
 												)}
 												<span class="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
-													{formatXof(ev.price_xof)}
+													{effectivePrice > 0 ? formatXof(effectivePrice) : 'Gratuit'}
 												</span>
 											</div>
 											<p class="text-xs text-slate-500 mt-1">

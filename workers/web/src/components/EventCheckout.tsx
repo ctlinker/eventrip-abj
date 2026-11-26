@@ -27,10 +27,14 @@ export default function EventCheckout({ slug }: Props) {
 	const [submitting, setSubmitting] = useState(false);
 	const [wishlisted, setWishlisted] = useState(false);
 	const [togglingWishlist, setTogglingWishlist] = useState(false);
+	const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
 	useEffect(() => {
 		const savedCommune = localStorage.getItem('eventrip_commune') || '';
 		setPreferredCommune(savedCommune);
+		apiFetch<{ user?: { id: string } } | null>('/api/auth/get-session')
+			.then((res) => setIsAuthenticated(Boolean(res?.user)))
+			.catch(() => setIsAuthenticated(false));
 		apiFetch<{ event: PublicEvent }>(`/api/events/${slug}`)
 			.then((data) => {
 				setEvent(data.event);
@@ -124,6 +128,20 @@ export default function EventCheckout({ slug }: Props) {
 
 	async function handleCheckout() {
 		if (!selectedConvoy || safeQty < 1) return;
+		if (isAuthenticated === false) {
+			try {
+				sessionStorage.setItem(
+					DRAFT_ORDER_KEY,
+					JSON.stringify({
+						slug,
+						convoyId: selectedConvoy.id,
+						quantity: safeQty,
+					}),
+				);
+			} catch {}
+			window.location.href = `/auth?next=${encodeURIComponent(window.location.pathname)}`;
+			return;
+		}
 		setSubmitting(true);
 		setError(null);
 
@@ -160,7 +178,7 @@ export default function EventCheckout({ slug }: Props) {
 	const posterUrls = getEventPosterUrls(event);
 
 	return (
-		<div class="pb-24 lg:pb-0">
+		<div class="pb-4 lg:pb-0">
 			<div class="grid gap-8 lg:grid-cols-3">
 				<div class="lg:col-span-2 space-y-8">
 					<div class="relative pt-3.5">
@@ -369,9 +387,9 @@ export default function EventCheckout({ slug }: Props) {
 				</aside>
 			</div>
 
-			{/* Barre d'action fixe en bas d'écran sur mobile (< lg) */}
+			{/* Barre d'action sticky en bas sur mobile (< lg) sans recouvrir le footer */}
 			{selectedConvoy && (
-				<div class="fixed bottom-0 inset-x-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+				<div class="sticky bottom-0 z-30 -mx-4 sm:-mx-6 mt-6 border-t border-slate-200 bg-white/95 px-4 sm:px-6 py-3 backdrop-blur lg:hidden">
 					<div class="mx-auto flex max-w-2xl items-center justify-between gap-3">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-semibold text-slate-500">

@@ -114,6 +114,8 @@ export default function WishlistPage() {
 						const displayPrice =
 							event.price_xof > 0 ? event.price_xof : event.categories?.[0]?.price_xof ?? null;
 
+						const eventHref = `/events/${event.slug}`;
+
 						return (
 							<div key={event.id} class="relative pt-3.5 flex flex-col min-w-0 max-w-full">
 								{event.category_name && (
@@ -133,53 +135,53 @@ export default function WishlistPage() {
 									<Heart class="h-4 w-4 fill-red-500 text-red-500" />
 								</button>
 
-								<a
-									href={`/events/${event.slug}`}
-									class="group flex flex-1 flex-col min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:border-slate-300 hover:shadow-md transition-all"
-								>
+								<div class="group flex flex-1 flex-col min-w-0 w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs hover:border-slate-300 hover:shadow-md transition-all">
 									<EventImageCarousel
 										urls={posterUrls}
 										alt={event.title}
 										aspectClass="aspect-[16/10]"
+										href={eventHref}
 									/>
 
-									{prioritizedConvoys.length > 0 && (
-										<div class="flex flex-wrap items-center gap-1.5 border-y border-slate-100 bg-slate-50/90 px-3 py-2">
-											{prioritizedConvoys.slice(0, 3).map((cv) => (
-												<span
-													key={cv.id}
-													class="inline-flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700"
-												>
-													<MapPin class="h-3 w-3 text-emerald-600" />
-													{cv.commune || cv.name} • {cv.remaining}/{cv.capacity} dispo
-												</span>
-											))}
-										</div>
-									)}
-
-									<div class="flex flex-1 flex-col p-5">
-										<h3 class="text-lg font-bold text-slate-950 group-hover:text-emerald-700 transition-colors leading-snug">
-											{event.title}
-										</h3>
-										<p class="mt-1.5 text-xs font-medium text-slate-500 truncate">
-											{formatDate(event.starts_at)} • {event.venue}
-										</p>
-										<div class="mt-auto pt-5 flex items-center justify-between gap-3">
-											<div>
-												{displayPrice !== null ? (
-													<p class="text-xl font-black tracking-tight text-slate-950">
-														{formatXof(displayPrice)}
-													</p>
-												) : (
-													<p class="text-sm font-medium text-slate-500">Tarif à venir</p>
-												)}
+									<a href={eventHref} class="flex flex-1 flex-col min-w-0 w-full">
+										{prioritizedConvoys.length > 0 && (
+											<div class="flex flex-wrap items-center gap-1.5 border-y border-slate-100 bg-slate-50/90 px-3 py-2">
+												{prioritizedConvoys.slice(0, 3).map((cv) => (
+													<span
+														key={cv.id}
+														class="inline-flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700"
+													>
+														<MapPin class="h-3 w-3 text-emerald-600" />
+														{cv.commune || cv.name} • {cv.remaining}/{cv.capacity} dispo
+													</span>
+												))}
 											</div>
-											<span class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs group-hover:bg-emerald-700 transition-colors">
-												Réserver
-											</span>
+										)}
+
+										<div class="flex flex-1 flex-col p-5">
+											<h3 class="text-lg font-bold text-slate-950 group-hover:text-emerald-700 transition-colors leading-snug">
+												{event.title}
+											</h3>
+											<p class="mt-1.5 text-xs font-medium text-slate-500 truncate">
+												{formatDate(event.starts_at)} • {event.venue}
+											</p>
+											<div class="mt-auto pt-5 flex items-center justify-between gap-3">
+												<div>
+													{displayPrice !== null ? (
+														<p class="text-xl font-black tracking-tight text-slate-950">
+															{formatXof(displayPrice)}
+														</p>
+													) : (
+														<p class="text-sm font-medium text-slate-500">Tarif à venir</p>
+													)}
+												</div>
+												<span class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs group-hover:bg-emerald-700 transition-colors">
+													Réserver
+												</span>
+											</div>
 										</div>
-									</div>
-								</a>
+									</a>
+								</div>
 							</div>
 						);
 					})}

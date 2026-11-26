@@ -344,7 +344,63 @@ clientRoutes.get('/orders', async (c) => {
 		.orderBy('created_at', 'desc')
 		.execute();
 
-	return c.json({ orders });
+	if (orders.length === 0) {
+		return c.json({ orders: [] });
+	}
+
+	const orderIds = orders.map((o) => o.id);
+	const ticketMeta = await db
+		.selectFrom('tickets as t')
+		.innerJoin('events as e', 'e.id', 't.event_id')
+		.leftJoin('convoys as cv', 'cv.id', 't.convoy_id')
+		.select([
+			't.order_id',
+			'e.title as event_title',
+			'e.slug as event_slug',
+			'cv.commune as convoy_commune',
+			'cv.meeting_point as convoy_meeting_point',
+		])
+		.where('t.order_id', 'in', orderIds)
+		.execute();
+
+	const metaByOrder = new Map<
+		string,
+		{
+			event_title: string;
+			event_slug: string;
+			convoy_commune: string | null;
+			convoy_meeting_point: string | null;
+			ticket_count: number;
+		}
+	>();
+	for (const row of ticketMeta) {
+		const existing = metaByOrder.get(row.order_id);
+		if (!existing) {
+			metaByOrder.set(row.order_id, {
+				event_title: row.event_title,
+				event_slug: row.event_slug,
+				convoy_commune: row.convoy_commune ?? null,
+				convoy_meeting_point: row.convoy_meeting_point ?? null,
+				ticket_count: 1,
+			});
+		} else {
+			existing.ticket_count += 1;
+		}
+	}
+
+	return c.json({
+		orders: orders.map((o) => {
+			const meta = metaByOrder.get(o.id);
+			return {
+				...o,
+				event_title: meta?.event_title ?? null,
+				event_slug: meta?.event_slug ?? null,
+				convoy_commune: meta?.convoy_commune ?? null,
+				convoy_meeting_point: meta?.convoy_meeting_point ?? null,
+				ticket_count: meta?.ticket_count ?? 0,
+			};
+		}),
+	});
 });
 
 clientRoutes.get('/orders/:id', async (c) => {
@@ -383,25 +439,60 @@ clientRoutes.get('/orders/:id', async (c) => {
 			.execute(),
 	]);
 
-	let eventWaveUrl: string | null = null;
+	let eventInfo: {
+		id: string;
+		title: string;
+		slug: string;
+		venue: string;
+		starts_at: string;
+		wave_payment_url: string | null;
+	} | null = null;
 	if (tickets.length > 0) {
 		const ev = await db
 			.selectFrom('events')
-			.select(['wave_payment_url'])
+			.select(['id', 'title', 'slug', 'venue', 'starts_at', 'wave_payment_url'])
 			.where('id', '=', tickets[0].event_id)
 			.executeTakeFirst();
-		eventWaveUrl = ev?.wave_payment_url ?? null;
+		if (ev) eventInfo = ev;
 	}
 
+	const convoyIds = items
+		.map((i) => i.convoy_id)
+		.filter((id): id is string => Boolean(id));
+	const convoysList = convoyIds.length
+		? await db
+				.selectFrom('convoys')
+				.select(['id', 'commune', 'meeting_point', 'name'])
+				.where('id', 'in', convoyIds)
+				.execute()
+		: [];
+	const convoyMap = new Map(convoysList.map((cv) => [cv.id, cv]));
+
 	const wavePaymentUrl = buildWavePaymentUrl(
-		eventWaveUrl,
+		eventInfo?.wave_payment_url ?? null,
 		order.total_amount_xof,
 		c.env.WAVE_MERCHANT_ID,
 	);
 
 	return c.json({
 		order,
-		items,
+		event: eventInfo
+			? {
+					id: eventInfo.id,
+					title: eventInfo.title,
+					slug: eventInfo.slug,
+					venue: eventInfo.venue,
+					starts_at: eventInfo.starts_at,
+				}
+			: null,
+		items: items.map((item) => {
+			const cv = item.convoy_id ? convoyMap.get(item.convoy_id) : undefined;
+			return {
+				...item,
+				convoy_commune: cv?.commune || cv?.name || null,
+				convoy_meeting_point: cv?.meeting_point ?? null,
+			};
+		}),
 		payment: payment ? { ...payment, wave_payment_url: wavePaymentUrl } : null,
 		tickets: tickets.map((t) => ({
 			...t,
