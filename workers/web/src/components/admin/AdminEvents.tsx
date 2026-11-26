@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Plus, ImagePlus, X, Bus, ArrowLeft, Tag, Archive, Trash2, RotateCcw, MapPin } from 'lucide-preact';
+import { Plus, ImagePlus, X, Bus, ArrowLeft, Tag, Archive, Trash2, RotateCcw, MapPin, Pencil, History, Copy, Lock } from 'lucide-preact';
 import {
 	ABIDJAN_COMMUNES,
 	apiFetch,
@@ -9,35 +9,16 @@ import {
 	type CommuneItem,
 	type EventCategory,
 } from '../../lib/api';
+import {
+	CloneArchiveModal,
+	EditConvoyModal,
+	EditEventModal,
+	RevisionHistoryModal,
+	type AdminConvoyItem,
+	type AdminEventItem,
+} from './AdminRevisionModals';
 
-interface AdminEvent {
-	id: string;
-	slug: string;
-	title: string;
-	venue: string;
-	starts_at: string;
-	price_xof: number;
-	category_id?: string | null;
-	category_name?: string | null;
-	wave_payment_url: string | null;
-	poster_key: string | null;
-	poster_keys?: string[];
-	status: 'draft' | 'published' | 'archived';
-	categories?: Array<{
-		id: string;
-		name: string;
-		price_xof: number;
-	}>;
-	convoys: Array<{
-		id: string;
-		name: string;
-		commune?: string;
-		meeting_point?: string;
-		departure_at?: string;
-		capacity: number;
-		reserved_count: number;
-	}>;
-}
+type AdminEvent = AdminEventItem;
 
 export default function AdminEvents() {
 	const [view, setView] = useState<'list' | 'create' | 'categories' | 'communes' | 'departures'>('list');
@@ -92,6 +73,10 @@ export default function AdminEvents() {
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+	const [editingEvent, setEditingEvent] = useState<AdminEvent | null>(null);
+	const [editingConvoy, setEditingConvoy] = useState<{ convoy: AdminConvoyItem; eventTitle: string } | null>(null);
+	const [cloningEvent, setCloningEvent] = useState<AdminEvent | null>(null);
+	const [historyEvent, setHistoryEvent] = useState<AdminEvent | null>(null);
 	const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 	const [isAddingCategory, setIsAddingCategory] = useState(false);
 	const [isAddingDeparture, setIsAddingDeparture] = useState(false);
@@ -1155,8 +1140,12 @@ export default function AdminEvents() {
 														{ev.category_name}
 													</span>
 												)}
-												<span class="rounded-full bg-brand-50 border border-brand-200 px-2.5 py-0.5 text-xs font-bold text-brand-700">
+												<span class="rounded-full bg-brand-50 border border-brand-200 px-2.5 py-0.5 text-xs font-bold text-brand-700 inline-flex items-center gap-1">
+													{ev.price_locked && <Lock class="h-3 w-3 text-amber-600" title="Prix verrouillé après commande" />}
 													{effectivePrice > 0 ? formatXof(effectivePrice) : 'Gratuit'}
+												</span>
+												<span class="rounded-full bg-slate-100 border border-slate-200 px-2 py-0.5 text-[11px] font-mono font-bold text-slate-600">
+													v{ev.revision_number ?? 1}
 												</span>
 											</div>
 											<p class="text-xs text-slate-500 mt-1">
@@ -1169,6 +1158,33 @@ export default function AdminEvents() {
 											)}
 										</div>
 										<div class="flex flex-wrap items-center gap-2">
+											<button
+												type="button"
+												onClick={() => setEditingEvent(ev)}
+												class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-brand-300 hover:text-brand-700 cursor-pointer"
+											>
+												<Pencil class="h-3.5 w-3.5" />
+												Modifier
+											</button>
+											<button
+												type="button"
+												onClick={() => setHistoryEvent(ev)}
+												class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer"
+											>
+												<History class="h-3.5 w-3.5" />
+												Historique
+											</button>
+											{ev.status !== 'archived' && (
+												<button
+													type="button"
+													onClick={() => setCloningEvent(ev)}
+													title="Archiver cet événement et créer une nouvelle édition avec un nouveau tarif"
+													class="inline-flex items-center gap-1 rounded-xl border border-navy-200 bg-navy-50 px-3 py-1.5 text-xs font-bold text-navy-900 hover:bg-navy-100 cursor-pointer"
+												>
+													<Copy class="h-3.5 w-3.5" />
+													Dupliquer &amp; Archiver
+												</button>
+											)}
 											{ev.status === 'archived' ? (
 												<button
 													type="button"
@@ -1290,15 +1306,29 @@ export default function AdminEvents() {
 											{ev.convoys.map((cv) => (
 												<div
 													key={cv.id}
-													class="flex justify-between rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-1.5"
+													class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-1.5"
 												>
 													<span class="font-medium">
 														{cv.commune || cv.name}{' '}
 														{cv.meeting_point ? `• ${cv.meeting_point}` : ''}
+														{cv.departure_at ? ` • ${formatDate(cv.departure_at)}` : ''}
+														<span class="ml-1.5 font-mono text-[10px] text-slate-400">
+															v{cv.revision_number ?? 1}
+														</span>
 													</span>
-													<span class="font-bold text-brand-700">
-														{Math.max(0, cv.capacity - cv.reserved_count)}/{cv.capacity} dispo
-													</span>
+													<div class="flex items-center gap-2">
+														<span class="font-bold text-brand-700">
+															{Math.max(0, cv.capacity - cv.reserved_count)}/{cv.capacity} dispo
+														</span>
+														<button
+															type="button"
+															onClick={() => setEditingConvoy({ convoy: cv, eventTitle: ev.title })}
+															class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-700 hover:border-brand-300 hover:text-brand-700 cursor-pointer"
+														>
+															<Pencil class="h-3 w-3" />
+															Modifier
+														</button>
+													</div>
 												</div>
 											))}
 										</div>
@@ -1393,6 +1423,50 @@ export default function AdminEvents() {
 						})
 					)}
 				</div>
+			)}
+			{editingEvent && (
+				<EditEventModal
+					event={editingEvent}
+					eventCategories={eventCategories}
+					onClose={() => setEditingEvent(null)}
+					onSaved={() => {
+						setEditingEvent(null);
+						load();
+					}}
+					onOpenClone={() => {
+						const target = editingEvent;
+						setEditingEvent(null);
+						setCloningEvent(target);
+					}}
+				/>
+			)}
+
+			{editingConvoy && (
+				<EditConvoyModal
+					convoy={editingConvoy.convoy}
+					eventTitle={editingConvoy.eventTitle}
+					communeOptions={communeOptions}
+					onClose={() => setEditingConvoy(null)}
+					onSaved={() => {
+						setEditingConvoy(null);
+						load();
+					}}
+				/>
+			)}
+
+			{cloningEvent && (
+				<CloneArchiveModal
+					event={cloningEvent}
+					onClose={() => setCloningEvent(null)}
+					onCloned={() => {
+						setCloningEvent(null);
+						load();
+					}}
+				/>
+			)}
+
+			{historyEvent && (
+				<RevisionHistoryModal event={historyEvent} onClose={() => setHistoryEvent(null)} />
 			)}
 		</div>
 	);

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getDB } from 'db';
-import { isUniqueConstraintError, tryCatch } from 'utils';
+import { isUniqueConstraintError, tryCatch, tryCatchSync } from 'utils';
+import type { PurchaseSnapshot } from '../services/revisions';
 import { requireAuth } from '../middleware/auth';
 import {
 	addHoursIso,
@@ -124,6 +125,9 @@ clientRoutes.post('/orders', async (c) => {
 		quantity: number;
 		unitPriceXof: number;
 		wavePaymentUrl: string | null;
+		eventRevisionId: string | null;
+		convoyRevisionId: string | null;
+		snapshot: Omit<PurchaseSnapshot, 'purchased_at'>;
 	};
 	const resolved: ResolvedItem[] = [];
 
@@ -138,6 +142,11 @@ clientRoutes.post('/orders', async (c) => {
 					'tc.price_xof',
 					'tc.capacity',
 					'tc.reserved_count',
+					'e.title as event_title',
+					'e.starts_at as event_starts_at',
+					'e.venue as event_venue',
+					'e.revision_number as event_version',
+					'e.current_revision_id as event_revision_id',
 					'e.status as event_status',
 					'e.sales_start_at',
 					'e.sales_end_at',
@@ -162,6 +171,22 @@ clientRoutes.post('/orders', async (c) => {
 				quantity: item.quantity,
 				unitPriceXof: row.price_xof,
 				wavePaymentUrl: row.wave_payment_url,
+				eventRevisionId: row.event_revision_id ?? null,
+				convoyRevisionId: null,
+				snapshot: {
+					event_id: row.event_id,
+					event_title: row.event_title,
+					event_starts_at: row.event_starts_at,
+					event_venue: row.event_venue,
+					event_version: row.event_version ?? 1,
+					convoy_id: null,
+					convoy_name: null,
+					convoy_commune: null,
+					convoy_departure_at: null,
+					convoy_meeting_point: null,
+					convoy_version: null,
+					unit_price_xof: row.price_xof,
+				},
 			});
 		} else {
 			const row = await db
@@ -170,8 +195,19 @@ clientRoutes.post('/orders', async (c) => {
 				.select([
 					'cv.id',
 					'cv.event_id',
+					'cv.name as convoy_name',
+					'cv.commune as convoy_commune',
+					'cv.departure_at as convoy_departure_at',
+					'cv.meeting_point as convoy_meeting_point',
+					'cv.revision_number as convoy_version',
+					'cv.current_revision_id as convoy_revision_id',
 					'cv.price_xof as convoy_price_xof',
 					'cv.status as convoy_status',
+					'e.title as event_title',
+					'e.starts_at as event_starts_at',
+					'e.venue as event_venue',
+					'e.revision_number as event_version',
+					'e.current_revision_id as event_revision_id',
 					'e.price_xof as event_price_xof',
 					'e.status as event_status',
 					'e.sales_start_at',
@@ -190,13 +226,30 @@ clientRoutes.post('/orders', async (c) => {
 			if (row.sales_end_at && now > row.sales_end_at) {
 				return c.json({ error: 'La période de vente pour cet événement est terminée' }, 400);
 			}
+			const unitPriceXof = row.event_price_xof > 0 ? row.event_price_xof : row.convoy_price_xof;
 			resolved.push({
 				type: 'convoy',
 				id: row.id,
 				eventId: row.event_id,
 				quantity: item.quantity,
-				unitPriceXof: row.event_price_xof > 0 ? row.event_price_xof : row.convoy_price_xof,
+				unitPriceXof,
 				wavePaymentUrl: row.wave_payment_url,
+				eventRevisionId: row.event_revision_id ?? null,
+				convoyRevisionId: row.convoy_revision_id ?? null,
+				snapshot: {
+					event_id: row.event_id,
+					event_title: row.event_title,
+					event_starts_at: row.event_starts_at,
+					event_venue: row.event_venue,
+					event_version: row.event_version ?? 1,
+					convoy_id: row.id,
+					convoy_name: row.convoy_name,
+					convoy_commune: row.convoy_commune,
+					convoy_departure_at: row.convoy_departure_at,
+					convoy_meeting_point: row.convoy_meeting_point,
+					convoy_version: row.convoy_version ?? 1,
+					unit_price_xof: unitPriceXof,
+				},
 			});
 		}
 	}
@@ -280,11 +333,16 @@ clientRoutes.post('/orders', async (c) => {
 			),
 		);
 
+		const purchaseSnapshotJson = JSON.stringify({
+			...item.snapshot,
+			purchased_at: now,
+		} satisfies PurchaseSnapshot);
+
 		for (let i = 0; i < item.quantity; i++) {
 			insertStatements.push(
 				c.env.DB.prepare(
-					`INSERT INTO tickets (id, code, qr_token, order_id, order_item_id, user_id, event_id, item_type, ticket_category_id, convoy_id, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
+					`INSERT INTO tickets (id, code, qr_token, order_id, order_item_id, user_id, event_id, item_type, ticket_category_id, convoy_id, event_revision_id, convoy_revision_id, purchase_snapshot, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)`,
 				).bind(
 					crypto.randomUUID(),
 					generateTicketCode(),
@@ -296,6 +354,9 @@ clientRoutes.post('/orders', async (c) => {
 					item.type === 'ticket_category' ? 'event_ticket' : 'convoy_ticket',
 					item.type === 'ticket_category' ? item.id : null,
 					item.type === 'convoy' ? item.id : null,
+					item.eventRevisionId,
+					item.convoyRevisionId,
+					purchaseSnapshotJson,
 					now,
 					now,
 				),
@@ -706,6 +767,9 @@ clientRoutes.get('/tickets', async (c) => {
 			't.used_at',
 			't.outbound_used_at',
 			't.return_used_at',
+			't.event_revision_id',
+			't.convoy_revision_id',
+			't.purchase_snapshot',
 			't.created_at',
 			'o.reference as order_reference',
 			'oi.unit_price_xof as price_xof',
@@ -713,22 +777,45 @@ clientRoutes.get('/tickets', async (c) => {
 			'e.title as event_title',
 			'e.starts_at as event_starts_at',
 			'e.venue as event_venue',
+			'e.revision_number as event_current_version',
+			'e.current_revision_id as event_current_revision_id',
 			'tc.name as category_name',
 			'cv.name as convoy_name',
 			'cv.commune as convoy_commune',
 			'cv.trip_type as convoy_trip_type',
 			'cv.departure_at as convoy_departure_at',
 			'cv.meeting_point as convoy_meeting_point',
+			'cv.revision_number as convoy_current_version',
+			'cv.current_revision_id as convoy_current_revision_id',
 		])
 		.where('t.user_id', '=', user.id)
 		.orderBy('t.created_at', 'desc')
 		.execute();
 
 	return c.json({
-		tickets: tickets.map((t) => ({
-			...t,
-			qr_token: t.status === 'valid' ? t.qr_token : null,
-		})),
+		tickets: tickets.map((t) => {
+			let parsedSnapshot: PurchaseSnapshot | null = null;
+			if (t.purchase_snapshot) {
+				const parsed = tryCatchSync(() => JSON.parse(t.purchase_snapshot!) as PurchaseSnapshot);
+				if (parsed.ok) parsedSnapshot = parsed.data;
+			}
+			const eventUpdated = Boolean(
+				t.event_revision_id &&
+					t.event_current_revision_id &&
+					t.event_revision_id !== t.event_current_revision_id,
+			);
+			const convoyUpdated = Boolean(
+				t.convoy_revision_id &&
+					t.convoy_current_revision_id &&
+					t.convoy_revision_id !== t.convoy_current_revision_id,
+			);
+			return {
+				...t,
+				purchase_snapshot: parsedSnapshot,
+				has_updates: eventUpdated || convoyUpdated,
+				qr_token: t.status === 'valid' ? t.qr_token : null,
+			};
+		}),
 	});
 });
 

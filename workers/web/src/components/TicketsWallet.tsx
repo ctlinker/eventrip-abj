@@ -1,8 +1,24 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import QRCode from 'qrcode';
-import { Ticket, Calendar, MapPin, Bus, Lock, Download, FileText, QrCode, X } from 'lucide-preact';
+import { Ticket, Calendar, MapPin, Bus, Lock, Download, FileText, QrCode, X, RefreshCw } from 'lucide-preact';
 import { apiFetch, formatDate, formatXof } from '../lib/api';
 import { subscribeRealtime } from '../lib/realtime';
+
+interface TicketPurchaseSnapshot {
+	event_id: string;
+	event_title: string;
+	event_starts_at: string;
+	event_venue: string;
+	event_version: number;
+	convoy_id: string | null;
+	convoy_name: string | null;
+	convoy_commune: string | null;
+	convoy_departure_at: string | null;
+	convoy_meeting_point: string | null;
+	convoy_version: number | null;
+	unit_price_xof: number;
+	purchased_at: string;
+}
 
 interface WalletTicket {
 	id: string;
@@ -20,12 +36,16 @@ interface WalletTicket {
 	event_title: string;
 	event_starts_at: string;
 	event_venue: string;
+	event_current_version?: number;
 	category_name: string | null;
 	convoy_name: string | null;
 	convoy_commune?: string | null;
 	convoy_trip_type?: string | null;
 	convoy_departure_at: string | null;
 	convoy_meeting_point: string | null;
+	convoy_current_version?: number | null;
+	purchase_snapshot?: TicketPurchaseSnapshot | null;
+	has_updates?: boolean;
 }
 
 function QrModal({ ticket, onClose }: { ticket: WalletTicket; onClose: () => void }) {
@@ -267,7 +287,9 @@ export default function TicketsWallet() {
 				ev.type === 'payment_confirmed' ||
 				ev.type === 'payment_rejected' ||
 				ev.type === 'ticket_scanned' ||
-				ev.type === 'order_expired'
+				ev.type === 'order_expired' ||
+				ev.type === 'event_updated' ||
+				ev.type === 'convoy_updated'
 			) {
 				fetchTickets();
 			}
@@ -303,17 +325,35 @@ export default function TicketsWallet() {
 			<div class="grid gap-6 md:grid-cols-2">
 				{tickets.map((t) => {
 					const badge = STATUS_INFO[t.status] || STATUS_INFO.pending;
+					const snap = t.purchase_snapshot;
+					const currentDate = t.convoy_departure_at || t.event_starts_at;
+					const origDate = snap ? snap.convoy_departure_at || snap.event_starts_at : null;
+					const dateChanged = Boolean(origDate && origDate !== currentDate);
+					const currentLocation = t.convoy_meeting_point || t.event_venue;
+					const origLocation = snap ? snap.convoy_meeting_point || snap.event_venue : null;
+					const locationChanged = Boolean(origLocation && origLocation !== currentLocation);
+					const titleChanged = Boolean(snap && snap.event_title !== t.event_title);
+					const showUpdateBadge = Boolean(t.has_updates || dateChanged || locationChanged || titleChanged);
+
 					return (
 						<div
 							key={t.id}
 							class="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs"
 						>
 							<div class="p-6">
-								<div class="flex items-center justify-between gap-2">
+								<div class="flex flex-wrap items-center justify-between gap-2">
 									<span class="font-mono text-xs font-bold text-slate-500">{t.code}</span>
-									<span class={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${badge.cls}`}>
-										{badge.label}
-									</span>
+									<div class="flex items-center gap-1.5">
+										{showUpdateBadge && (
+											<span class="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
+												<RefreshCw class="h-3 w-3" />
+												Mis à jour
+											</span>
+										)}
+										<span class={`rounded-full border px-2.5 py-0.5 text-xs font-bold ${badge.cls}`}>
+											{badge.label}
+										</span>
+									</div>
 								</div>
 
 								<h3 class="mt-3 text-lg font-extrabold text-slate-950">{t.event_title}</h3>
@@ -334,14 +374,47 @@ export default function TicketsWallet() {
 								</p>
 
 								<div class="mt-3 space-y-1 text-xs text-slate-500">
-									<p class="flex items-center gap-1.5">
-										<Calendar class="h-3.5 w-3.5 text-brand-600" />
-										{formatDate(t.convoy_departure_at || t.event_starts_at)}
+									<p class="flex flex-wrap items-center gap-1.5">
+										<Calendar class="h-3.5 w-3.5 text-brand-600 shrink-0" />
+										{dateChanged && origDate && (
+											<span class="line-through text-slate-400">{formatDate(origDate)}</span>
+										)}
+										<span class={dateChanged ? 'font-bold text-amber-900' : ''}>
+											{formatDate(currentDate)}
+										</span>
 									</p>
-									<p class="flex items-center gap-1.5">
-										<MapPin class="h-3.5 w-3.5 text-brand-600" />
-										{t.convoy_meeting_point || t.event_venue}
+									<p class="flex flex-wrap items-center gap-1.5">
+										<MapPin class="h-3.5 w-3.5 text-brand-600 shrink-0" />
+										{locationChanged && origLocation && (
+											<span class="line-through text-slate-400">{origLocation}</span>
+										)}
+										<span class={locationChanged ? 'font-bold text-amber-900' : ''}>
+											{currentLocation}
+										</span>
 									</p>
+
+									{showUpdateBadge && snap && (
+										<details class="mt-2 rounded-xl border border-amber-200/80 bg-amber-50/50 px-3 py-2 text-[11px] text-amber-950">
+											<summary class="cursor-pointer font-bold select-none">
+												Informations mises à jour · Voir l’achat d’origine
+											</summary>
+											<div class="mt-2 space-y-1 border-t border-amber-200/70 pt-2 text-slate-700">
+												<p>
+													<strong>Événement initial :</strong> {snap.event_title} (v{snap.event_version})
+												</p>
+												<p>
+													<strong>Date initiale :</strong> {formatDate(snap.convoy_departure_at || snap.event_starts_at)}
+												</p>
+												<p>
+													<strong>Lieu initial :</strong> {snap.convoy_meeting_point || snap.event_venue}
+												</p>
+												<p>
+													<strong>Prix payé (immuable) :</strong> {formatXof(snap.unit_price_xof)} · Acheté le{' '}
+													{formatDate(snap.purchased_at)}
+												</p>
+											</div>
+										</details>
+									)}
 									{t.item_type === 'convoy_ticket' &&
 										t.status !== 'pending' &&
 										t.status !== 'cancelled' && (

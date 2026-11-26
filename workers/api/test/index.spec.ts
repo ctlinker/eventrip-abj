@@ -8,6 +8,7 @@ import migration005 from '../../../packages/db/migrations/005_event_categories.s
 import migration006 from '../../../packages/db/migrations/006_wishlists.sql?raw';
 import migration007 from '../../../packages/db/migrations/007_notifications_realtime_push.sql?raw';
 import migration008 from '../../../packages/db/migrations/008_communes.sql?raw';
+import migration009 from '../../../packages/db/migrations/009_event_convoy_revisions.sql?raw';
 import { expirePendingOrders, sendExpiringOrderReminders } from '../src/services/orders';
 import { maybeBootstrapSuperAdmin } from '../src/lib/bootstrap';
 
@@ -62,6 +63,7 @@ describe('Eventrip API Core', () => {
 		await applySql(migration006);
 		await applySql(migration007);
 		await applySql(migration008);
+		await applySql(migration009);
 
 		const client = await signUpAndGetCookie('Kouame Client', 'client@eventrip.ci', '+2250700000001');
 		clientCookie = client.cookie;
@@ -604,5 +606,162 @@ describe('Eventrip API Core', () => {
 		expect(unsubRes.status).toBe(200);
 
 		expect(clientUserId).toBeTruthy();
+	});
+
+	it('enforces event/convoy revisions, price immutability, notifications, and clone & archive', async () => {
+		// 1. Créer un nouvel événement dédié (v1)
+		const createRes = await SELF.fetch('https://example.com/api/admin/events', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({
+				title: 'Gala Revision Test',
+				description: 'Test révisions immuables',
+				starts_at: '2026-12-28T19:00:00.000Z',
+				venue: 'Palais de la Culture',
+				price_xof: 10000,
+				status: 'published',
+				initial_departure: {
+					commune: 'Cocody',
+					meeting_point: 'Rond-point Angré',
+					departure_at: '2026-12-28T16:00:00.000Z',
+					capacity: 20,
+				},
+			}),
+		});
+		expect(createRes.status).toBe(201);
+		const created = (await createRes.json()) as {
+			event: { id: string; revision_number: number; convoys: Array<{ id: string }> };
+		};
+		const revEventId = created.event.id;
+		const revConvoyId = created.event.convoys[0].id;
+		expect(created.event.revision_number).toBe(1);
+
+		// 2. Avant toute commande, le prix est modifiable (v1 -> v2)
+		const preSaleEdit = await SELF.fetch(`https://example.com/api/admin/events/${revEventId}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({ price_xof: 12000, title: 'Gala Revision Test V2' }),
+		});
+		expect(preSaleEdit.status).toBe(200);
+		const preSaleData = (await preSaleEdit.json()) as {
+			event: { price_xof: number; revision_number: number };
+		};
+		expect(preSaleData.event.price_xof).toBe(12000);
+		expect(preSaleData.event.revision_number).toBe(2);
+
+		// 3. Le client achète 2 places sur ce convoi
+		const orderRes = await SELF.fetch('https://example.com/api/orders', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: clientCookie },
+			body: JSON.stringify({
+				items: [{ type: 'convoy', id: revConvoyId, quantity: 2 }],
+			}),
+		});
+		expect(orderRes.status).toBe(201);
+
+		const ticketsBeforeRes = await SELF.fetch('https://example.com/api/tickets', {
+			headers: { Cookie: clientCookie },
+		});
+		const ticketsBefore = (await ticketsBeforeRes.json()) as {
+			tickets: Array<{
+				id: string;
+				convoy_meeting_point: string | null;
+				event_revision_id: string | null;
+				convoy_revision_id: string | null;
+				purchase_snapshot: { unit_price_xof: number; convoy_meeting_point: string | null } | null;
+				has_updates: boolean;
+			}>;
+		};
+		const targetTicketBefore = ticketsBefore.tickets.find(
+			(t) => t.convoy_meeting_point === 'Rond-point Angré',
+		);
+		expect(targetTicketBefore).toBeTruthy();
+		expect(targetTicketBefore?.purchase_snapshot?.unit_price_xof).toBe(12000);
+		expect(targetTicketBefore?.has_updates).toBe(false);
+
+		// 4. Après commande active, la modification directe du prix est bloquée (409)
+		const lockedPriceRes = await SELF.fetch(`https://example.com/api/admin/events/${revEventId}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({ price_xof: 15000 }),
+		});
+		expect(lockedPriceRes.status).toBe(409);
+
+		// 5. Réduire la capacité sous reserved_count (2) est bloqué (409)
+		const badCapRes = await SELF.fetch(`https://example.com/api/admin/convoys/${revConvoyId}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({ capacity: 1 }),
+		});
+		expect(badCapRes.status).toBe(409);
+
+		// 6. Modifier l'heure et le point de rassemblement du convoi -> v2 + notification + snapshot immuable
+		const editConvoyRes = await SELF.fetch(`https://example.com/api/admin/convoys/${revConvoyId}`, {
+			method: 'PATCH',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({
+				meeting_point: 'Carrefour St Jean',
+				departure_at: '2026-12-28T17:00:00.000Z',
+				change_summary: 'Décalage d’une heure',
+			}),
+		});
+		expect(editConvoyRes.status).toBe(200);
+		const editConvoyData = (await editConvoyRes.json()) as {
+			convoy: { revision_number: number };
+			notified_users_count: number;
+		};
+		expect(editConvoyData.convoy.revision_number).toBe(2);
+		expect(editConvoyData.notified_users_count).toBe(1); // dédupliqué pour les 2 billets du même client
+
+		// Vérifier que le billet affiche has_updates=true, la nouvelle adresse, et préserve son snapshot d'origine
+		const ticketsAfterRes = await SELF.fetch('https://example.com/api/tickets', {
+			headers: { Cookie: clientCookie },
+		});
+		const ticketsAfter = (await ticketsAfterRes.json()) as {
+			tickets: Array<{
+				id: string;
+				convoy_meeting_point: string | null;
+				purchase_snapshot: { convoy_meeting_point: string | null; unit_price_xof: number } | null;
+				has_updates: boolean;
+			}>;
+		};
+		const updatedTicket = ticketsAfter.tickets.find((t) => t.id === targetTicketBefore?.id);
+		expect(updatedTicket?.has_updates).toBe(true);
+		expect(updatedTicket?.convoy_meeting_point).toBe('Carrefour St Jean');
+		expect(updatedTicket?.purchase_snapshot?.convoy_meeting_point).toBe('Rond-point Angré');
+		expect(updatedTicket?.purchase_snapshot?.unit_price_xof).toBe(12000);
+
+		// Vérifier l'historique des révisions
+		const histRes = await SELF.fetch(`https://example.com/api/admin/events/${revEventId}/revisions`, {
+			headers: { Cookie: adminVerifierCookie },
+		});
+		expect(histRes.status).toBe(200);
+		const histData = (await histRes.json()) as {
+			event_revisions: Array<{ version_number: number }>;
+			convoy_revisions: Array<{ version_number: number }>;
+		};
+		expect(histData.event_revisions.length).toBe(2);
+		expect(histData.convoy_revisions.length).toBe(2);
+
+		// 7. Clone & Archive pour changer de tarif (12000 -> 15000) sans dupliquer les réservations
+		const cloneRes = await SELF.fetch(`https://example.com/api/admin/events/${revEventId}/clone-archive`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({
+				price_xof: 15000,
+				title: 'Gala Revision Test — Phase 2',
+				status: 'published',
+			}),
+		});
+		expect(cloneRes.status).toBe(201);
+		const cloneData = (await cloneRes.json()) as {
+			archived_event_id: string;
+			event: { id: string; price_xof: number; convoys: Array<{ capacity: number; reserved_count: number }> };
+		};
+		expect(cloneData.archived_event_id).toBe(revEventId);
+		expect(cloneData.event.id).not.toBe(revEventId);
+		expect(cloneData.event.price_xof).toBe(15000);
+		expect(cloneData.event.convoys[0].reserved_count).toBe(0);
+		expect(cloneData.event.convoys[0].capacity).toBe(18); // 20 - 2 places déjà réservées
 	});
 });

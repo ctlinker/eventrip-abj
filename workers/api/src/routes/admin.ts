@@ -9,6 +9,17 @@ import {
 	scheduleOutboxFlush,
 } from '../services/notifications';
 import { releaseOrderReservations } from '../services/orders';
+import {
+	buildConvoySnapshot,
+	buildEventSnapshot,
+	computeConvoyDiff,
+	computeEventDiff,
+	formatDiffSummary,
+	getAffectedUserIdsForConvoy,
+	getAffectedUserIdsForEvent,
+	getEventOrderStats,
+	resolveSeverity,
+} from '../services/revisions';
 import type { AppEnv } from '../types';
 
 export const adminRoutes = new Hono<AppEnv>();
@@ -168,17 +179,67 @@ adminRoutes.get('/events', async (c) => {
 		? await db.selectFrom('ticket_categories').selectAll().execute()
 		: [];
 	const convoys = events.length ? await db.selectFrom('convoys').selectAll().execute() : [];
+	const activeTicketRows = events.length
+		? await db
+				.selectFrom('tickets as t')
+				.innerJoin('orders as o', 'o.id', 't.order_id')
+				.select([
+					't.event_id',
+					't.convoy_id',
+					't.user_id',
+					't.status as ticket_status',
+					'o.id as order_id',
+				])
+				.where('o.status', 'in', ['pending_payment', 'under_review', 'confirmed'])
+				.execute()
+		: [];
+
+	const eventOrders = new Map<string, Set<string>>();
+	const eventHolders = new Map<string, Set<string>>();
+	const eventTicketCounts = new Map<string, number>();
+	const convoyHolders = new Map<string, Set<string>>();
+	const convoyTicketCounts = new Map<string, number>();
+
+	for (const r of activeTicketRows) {
+		if (!eventOrders.has(r.event_id)) eventOrders.set(r.event_id, new Set());
+		eventOrders.get(r.event_id)!.add(r.order_id);
+
+		if (r.ticket_status === 'valid' || r.ticket_status === 'pending') {
+			if (!eventHolders.has(r.event_id)) eventHolders.set(r.event_id, new Set());
+			eventHolders.get(r.event_id)!.add(r.user_id);
+			eventTicketCounts.set(r.event_id, (eventTicketCounts.get(r.event_id) || 0) + 1);
+
+			if (r.convoy_id) {
+				if (!convoyHolders.has(r.convoy_id)) convoyHolders.set(r.convoy_id, new Set());
+				convoyHolders.get(r.convoy_id)!.add(r.user_id);
+				convoyTicketCounts.set(r.convoy_id, (convoyTicketCounts.get(r.convoy_id) || 0) + 1);
+			}
+		}
+	}
 
 	return c.json({
 		default_wave_merchant_id: c.env.WAVE_MERCHANT_ID,
 		event_categories: eventCategories,
 		communes,
-		events: events.map((ev) => ({
-			...ev,
-			poster_keys: parsePosterKeys(ev.poster_key),
-			categories: categories.filter((cat) => cat.event_id === ev.id),
-			convoys: convoys.filter((cv) => cv.event_id === ev.id),
-		})),
+		events: events.map((ev) => {
+			const activeOrdersCount = eventOrders.get(ev.id)?.size ?? 0;
+			return {
+				...ev,
+				price_locked: activeOrdersCount > 0,
+				active_orders_count: activeOrdersCount,
+				affected_holders_count: eventHolders.get(ev.id)?.size ?? 0,
+				affected_tickets_count: eventTicketCounts.get(ev.id) ?? 0,
+				poster_keys: parsePosterKeys(ev.poster_key),
+				categories: categories.filter((cat) => cat.event_id === ev.id),
+				convoys: convoys
+					.filter((cv) => cv.event_id === ev.id)
+					.map((cv) => ({
+						...cv,
+						affected_holders_count: convoyHolders.get(cv.id)?.size ?? 0,
+						affected_tickets_count: convoyTicketCounts.get(cv.id) ?? 0,
+					})),
+			};
+		}),
 	});
 });
 
@@ -320,26 +381,62 @@ adminRoutes.post('/events', async (c) => {
 		return c.json({ error: 'Cet événement vient déjà d’être publié.' }, 409);
 	}
 
-	await db
-		.insertInto('convoys')
-		.values({
-			id: convoyId,
-			event_id: id,
-			name: `Départ ${dep.commune.trim()}`,
-			commune: dep.commune.trim(),
-			departure_at: dep.departure_at,
-			meeting_point: dep.meeting_point.trim(),
-			destination: cleanVenue,
-			trip_type: 'round_trip',
-			price_xof: 0,
+	const eventRevId = `evrev-${id}-v1`;
+	const convoyRevId = `cvrev-${convoyId}-v1`;
+	const initialEventSnapshot = buildEventSnapshot({
+		title: cleanTitle,
+		description: body.description,
+		starts_at: body.starts_at,
+		ends_at: body.ends_at ?? null,
+		venue: cleanVenue,
+		price_xof: body.price_xof!,
+		category_id: body.category_id ?? null,
+		extra_info: body.extra_info ?? null,
+		wave_payment_url: body.wave_payment_url ?? null,
+		status: body.status ?? 'draft',
+	});
+	const initialConvoySnapshot = buildConvoySnapshot({
+		name: `Départ ${dep.commune.trim()}`,
+		commune: dep.commune.trim(),
+		departure_at: dep.departure_at,
+		meeting_point: dep.meeting_point.trim(),
+		destination: cleanVenue,
+		trip_type: 'round_trip',
+		price_xof: 0,
+		capacity,
+		extra_info: null,
+		status: 'published',
+	});
+
+	await c.env.DB.batch([
+		c.env.DB.prepare(
+			`INSERT INTO event_revisions (id, event_id, version_number, snapshot_json, severity, change_summary, changes_json, changed_by, created_at)
+       VALUES (?, ?, 1, ?, 'minor', 'Version initiale', NULL, ?, ?)`,
+		).bind(eventRevId, id, initialEventSnapshot, user.id, now),
+		c.env.DB.prepare(
+			`UPDATE events SET revision_number = 1, current_revision_id = ? WHERE id = ?`,
+		).bind(eventRevId, id),
+		c.env.DB.prepare(
+			`INSERT INTO convoys (id, event_id, name, commune, departure_at, meeting_point, destination, trip_type, price_xof, capacity, reserved_count, extra_info, status, revision_number, current_revision_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'round_trip', 0, ?, 0, NULL, 'published', 1, ?, ?, ?)`,
+		).bind(
+			convoyId,
+			id,
+			`Départ ${dep.commune.trim()}`,
+			dep.commune.trim(),
+			dep.departure_at,
+			dep.meeting_point.trim(),
+			cleanVenue,
 			capacity,
-			reserved_count: 0,
-			extra_info: null,
-			status: 'published',
-			created_at: now,
-			updated_at: now,
-		})
-		.execute();
+			convoyRevId,
+			now,
+			now,
+		),
+		c.env.DB.prepare(
+			`INSERT INTO convoy_revisions (id, convoy_id, version_number, snapshot_json, severity, change_summary, changes_json, changed_by, created_at)
+       VALUES (?, ?, 1, ?, 'minor', 'Version initiale', NULL, ?, ?)`,
+		).bind(convoyRevId, convoyId, initialConvoySnapshot, user.id, now),
+	]);
 
 	const [event, convoy] = await Promise.all([
 		db
@@ -368,11 +465,14 @@ adminRoutes.post('/events', async (c) => {
 });
 
 adminRoutes.patch('/events/:id', async (c) => {
+	const admin = c.get('user');
 	const id = c.req.param('id');
-	const body = await c.req
-		.json<Record<string, unknown>>()
-		.catch((): Record<string, unknown> => ({}));
+	const bodyRes = await tryCatch(c.req.json<Record<string, unknown>>());
+	const body = bodyRes.ok ? bodyRes.data : {};
 	const db = getDB(c.env.DB);
+
+	const existing = await db.selectFrom('events').selectAll().where('id', '=', id).executeTakeFirst();
+	if (!existing) return c.json({ error: 'Événement introuvable' }, 404);
 
 	const allowedFields = [
 		'title',
@@ -389,17 +489,408 @@ adminRoutes.patch('/events/:id', async (c) => {
 		'status',
 	] as const;
 
-	const updates: Record<string, unknown> = { updated_at: nowIso() };
+	const incoming: Record<string, unknown> = {};
 	for (const field of allowedFields) {
 		if (field in body) {
-			updates[field] = body[field];
+			incoming[field] = body[field];
 		}
 	}
 
-	await db.updateTable('events').set(updates).where('id', '=', id).execute();
-	const event = await db.selectFrom('events').selectAll().where('id', '=', id).executeTakeFirst();
+	if ('price_xof' in incoming) {
+		const nextPrice = Number(incoming.price_xof);
+		if (!Number.isInteger(nextPrice) || nextPrice < 0) {
+			return c.json({ error: 'Le prix (price_xof) doit être un entier positif ou nul' }, 400);
+		}
+		incoming.price_xof = nextPrice;
+		if (nextPrice !== existing.price_xof) {
+			const stats = await getEventOrderStats(db, id);
+			if (stats.priceLocked) {
+				return c.json(
+					{
+						error:
+							'Le prix est verrouillé après la première commande. Utilisez « Dupliquer & Archiver » pour créer une nouvelle édition tarifaire.',
+						code: 'PRICE_LOCKED',
+					},
+					409,
+				);
+			}
+		}
+	}
+
+	const { diffs, minSeverity } = computeEventDiff(existing as unknown as Record<string, unknown>, incoming);
+	if (diffs.length === 0) {
+		return c.json({ event: existing, unchanged: true, notified_users_count: 0 });
+	}
+
+	const severity = resolveSeverity(
+		minSeverity,
+		typeof body.severity === 'string' ? body.severity : null,
+	);
+	const customSummary =
+		typeof body.change_summary === 'string' && body.change_summary.trim()
+			? body.change_summary.trim()
+			: null;
+	const changeSummary = customSummary || formatDiffSummary(diffs);
+
+	const now = nowIso();
+	const nextVersion = (existing.revision_number ?? 1) + 1;
+	const revisionId = `evrev-${id}-v${nextVersion}-${crypto.randomUUID().slice(0, 6)}`;
+
+	const merged = {
+		...existing,
+		...incoming,
+		updated_at: now,
+		revision_number: nextVersion,
+		current_revision_id: revisionId,
+	};
+
+	const snapshotJson = buildEventSnapshot({
+		title: String(merged.title),
+		description: String(merged.description),
+		starts_at: String(merged.starts_at),
+		ends_at: merged.ends_at ? String(merged.ends_at) : null,
+		venue: String(merged.venue),
+		price_xof: Number(merged.price_xof),
+		category_id: merged.category_id ? String(merged.category_id) : null,
+		extra_info: merged.extra_info ? String(merged.extra_info) : null,
+		wave_payment_url: merged.wave_payment_url ? String(merged.wave_payment_url) : null,
+		status: String(merged.status),
+	});
+
+	const setCols: string[] = [];
+	const setVals: unknown[] = [];
+	for (const [k, v] of Object.entries(incoming)) {
+		setCols.push(`"${k}" = ?`);
+		setVals.push(v);
+	}
+	setCols.push('"revision_number" = ?', '"current_revision_id" = ?', '"updated_at" = ?');
+	setVals.push(nextVersion, revisionId, now, id);
+
+	const batch: D1PreparedStatement[] = [
+		c.env.DB.prepare(`UPDATE events SET ${setCols.join(', ')} WHERE id = ?`).bind(...setVals),
+		c.env.DB.prepare(
+			`INSERT INTO event_revisions (id, event_id, version_number, snapshot_json, severity, change_summary, changes_json, changed_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		).bind(
+			revisionId,
+			id,
+			nextVersion,
+			snapshotJson,
+			severity,
+			changeSummary,
+			JSON.stringify(diffs),
+			admin.id,
+			now,
+		),
+		c.env.DB.prepare(
+			`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, old_state, new_state, metadata, created_at)
+       VALUES (?, ?, 'event.revision', 'event', ?, ?, ?, ?, ?)`,
+		).bind(
+			crypto.randomUUID(),
+			admin.id,
+			id,
+			JSON.stringify(Object.fromEntries(diffs.map((d) => [d.field, d.before]))),
+			JSON.stringify(Object.fromEntries(diffs.map((d) => [d.field, d.after]))),
+			JSON.stringify({ revision_id: revisionId, version_number: nextVersion, severity, change_summary: changeSummary }),
+			now,
+		),
+	];
+
+	const shouldNotify =
+		severity === 'important' || severity === 'critical' || body.notify_customers === true;
+	const outboxIds: string[] = [];
+	let notifiedUsersCount = 0;
+
+	if (shouldNotify) {
+		const affectedUserIds = await getAffectedUserIdsForEvent(db, id);
+		notifiedUsersCount = affectedUserIds.length;
+		const notifTitle =
+			severity === 'critical'
+				? `Changement important — ${merged.title}`
+				: `Mise à jour — ${merged.title}`;
+		const notifBody = `${changeSummary} (Révision v${nextVersion} · Vos billets restent valides).`;
+
+		for (const uid of affectedUserIds) {
+			const built = buildNotificationStatements(c.env.DB, {
+				userId: uid,
+				type: 'event_updated',
+				title: notifTitle,
+				body: notifBody,
+				link: '/tickets',
+				tag: `event-rev-${id}-v${nextVersion}`,
+				push: true,
+				now,
+			});
+			batch.push(...built.statements);
+			outboxIds.push(built.outboxId);
+		}
+	}
+
+	await c.env.DB.batch(batch);
+	if (outboxIds.length > 0) {
+		scheduleOutboxFlush(c.env, c.executionCtx, outboxIds);
+	}
+
+	const [event, revision] = await Promise.all([
+		db.selectFrom('events').selectAll().where('id', '=', id).executeTakeFirst(),
+		db.selectFrom('event_revisions').selectAll().where('id', '=', revisionId).executeTakeFirst(),
+	]);
+	return c.json({ event, revision, notified_users_count: notifiedUsersCount });
+});
+
+adminRoutes.get('/events/:id/revisions', async (c) => {
+	const id = c.req.param('id');
+	const db = getDB(c.env.DB);
+
+	const event = await db.selectFrom('events').select(['id', 'title']).where('id', '=', id).executeTakeFirst();
 	if (!event) return c.json({ error: 'Événement introuvable' }, 404);
-	return c.json({ event });
+
+	const [eventRevisions, convoys] = await Promise.all([
+		db
+			.selectFrom('event_revisions as r')
+			.leftJoin('user as u', 'u.id', 'r.changed_by')
+			.selectAll('r')
+			.select(['u.name as changed_by_name'])
+			.where('r.event_id', '=', id)
+			.orderBy('r.version_number', 'desc')
+			.execute(),
+		db.selectFrom('convoys').select(['id', 'name', 'commune']).where('event_id', '=', id).execute(),
+	]);
+
+	const convoyIds = convoys.map((cv) => cv.id);
+	const convoyNameMap = new Map(convoys.map((cv) => [cv.id, cv.commune || cv.name]));
+	const convoyRevisions = convoyIds.length
+		? await db
+				.selectFrom('convoy_revisions as r')
+				.leftJoin('user as u', 'u.id', 'r.changed_by')
+				.selectAll('r')
+				.select(['u.name as changed_by_name'])
+				.where('r.convoy_id', 'in', convoyIds)
+				.orderBy('r.created_at', 'desc')
+				.execute()
+		: [];
+
+	return c.json({
+		event_revisions: eventRevisions,
+		convoy_revisions: convoyRevisions.map((r) => ({
+			...r,
+			convoy_label: convoyNameMap.get(r.convoy_id) ?? r.convoy_id,
+		})),
+	});
+});
+
+adminRoutes.post('/events/:id/clone-archive', async (c) => {
+	const admin = c.get('user');
+	const sourceId = c.req.param('id');
+	const bodyRes = await tryCatch(
+		c.req.json<{
+			price_xof?: number;
+			title?: string;
+			status?: 'draft' | 'published';
+			convoys?: Array<{
+				source_convoy_id: string;
+				capacity: number;
+				commune?: string;
+				meeting_point?: string;
+				departure_at?: string;
+			}>;
+		}>(),
+	);
+	const body = bodyRes.ok ? bodyRes.data : {};
+
+	if (!Number.isInteger(body.price_xof) || (body.price_xof as number) < 0) {
+		return c.json({ error: 'Un nouveau prix (price_xof >= 0) est requis' }, 400);
+	}
+
+	const db = getDB(c.env.DB);
+	const source = await db.selectFrom('events').selectAll().where('id', '=', sourceId).executeTakeFirst();
+	if (!source) return c.json({ error: 'Événement source introuvable' }, 404);
+
+	const sourceConvoys = await db
+		.selectFrom('convoys')
+		.selectAll()
+		.where('event_id', '=', sourceId)
+		.execute();
+
+	const now = nowIso();
+	const newEventId = crypto.randomUUID();
+	const nextTitle = body.title?.trim() || source.title;
+	const newSlug = `${slugify(nextTitle)}-${crypto.randomUUID().slice(0, 4)}`;
+	const nextStatus = body.status === 'draft' ? 'draft' : 'published';
+	const newEventRevId = `evrev-${newEventId}-v1`;
+
+	const archiveNextVer = (source.revision_number ?? 1) + 1;
+	const archiveRevId = `evrev-${sourceId}-v${archiveNextVer}-${crypto.randomUUID().slice(0, 6)}`;
+	const archiveSnapshot = buildEventSnapshot({
+		...source,
+		status: 'archived',
+	});
+
+	const newEventSnapshot = buildEventSnapshot({
+		title: nextTitle,
+		description: source.description,
+		starts_at: source.starts_at,
+		ends_at: source.ends_at,
+		venue: source.venue,
+		price_xof: body.price_xof!,
+		category_id: source.category_id,
+		extra_info: source.extra_info,
+		wave_payment_url: source.wave_payment_url,
+		status: nextStatus,
+	});
+
+	const batch: D1PreparedStatement[] = [
+		// 1. Archiver l'événement source sans toucher aux commandes/billets/réservations existants
+		c.env.DB.prepare(
+			`UPDATE events SET status = 'archived', revision_number = ?, current_revision_id = ?, updated_at = ? WHERE id = ?`,
+		).bind(archiveNextVer, archiveRevId, now, sourceId),
+		c.env.DB.prepare(
+			`INSERT INTO event_revisions (id, event_id, version_number, snapshot_json, severity, change_summary, changes_json, changed_by, created_at)
+       VALUES (?, ?, ?, ?, 'minor', ?, ?, ?, ?)`,
+		).bind(
+			archiveRevId,
+			sourceId,
+			archiveNextVer,
+			archiveSnapshot,
+			`Archivé suite à la création d’une nouvelle édition tarifaire (${body.price_xof} FCFA)`,
+			JSON.stringify([{ field: 'status', label: 'Statut', before: source.status, after: 'archived' }]),
+			admin.id,
+			now,
+		),
+		// 2. Créer le nouvel événement indépendant (v1)
+		c.env.DB.prepare(
+			`INSERT INTO events (
+				id, slug, title, description, poster_key, starts_at, ends_at,
+				venue, price_xof, category_id, extra_info, wave_payment_url,
+				sales_start_at, sales_end_at, status, revision_number, current_revision_id,
+				created_by, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+		).bind(
+			newEventId,
+			newSlug,
+			nextTitle,
+			source.description,
+			source.poster_key,
+			source.starts_at,
+			source.ends_at,
+			source.venue,
+			body.price_xof!,
+			source.category_id,
+			source.extra_info,
+			source.wave_payment_url,
+			source.sales_start_at,
+			source.sales_end_at,
+			nextStatus,
+			newEventRevId,
+			admin.id,
+			now,
+			now,
+		),
+		c.env.DB.prepare(
+			`INSERT INTO event_revisions (id, event_id, version_number, snapshot_json, severity, change_summary, changes_json, changed_by, created_at)
+       VALUES (?, ?, 1, ?, 'minor', ?, NULL, ?, ?)`,
+		).bind(
+			newEventRevId,
+			newEventId,
+			newEventSnapshot,
+			`Cloné depuis ${source.title} (${source.price_xof} → ${body.price_xof} FCFA)`,
+			admin.id,
+			now,
+		),
+	];
+
+	const overrideBySourceId = new Map(
+		(body.convoys || []).map((ov) => [ov.source_convoy_id, ov]),
+	);
+
+	for (const cv of sourceConvoys) {
+		const ov = overrideBySourceId.get(cv.id);
+		const defaultRemaining = Math.max(1, cv.capacity - cv.reserved_count);
+		const nextCap =
+			ov && Number.isInteger(ov.capacity) && ov.capacity >= 0 ? ov.capacity : defaultRemaining;
+		if (nextCap === 0) continue;
+
+		const newConvoyId = crypto.randomUUID();
+		const newConvoyRevId = `cvrev-${newConvoyId}-v1`;
+		const nextCommune = ov?.commune?.trim() || cv.commune;
+		const nextMeeting = ov?.meeting_point?.trim() || cv.meeting_point;
+		const nextDeparture = ov?.departure_at || cv.departure_at;
+		const nextName = `Départ ${nextCommune}`;
+
+		const cvSnap = buildConvoySnapshot({
+			name: nextName,
+			commune: nextCommune,
+			departure_at: nextDeparture,
+			meeting_point: nextMeeting,
+			destination: cv.destination,
+			trip_type: cv.trip_type,
+			price_xof: 0,
+			capacity: nextCap,
+			extra_info: cv.extra_info,
+			status: 'published',
+		});
+
+		batch.push(
+			c.env.DB.prepare(
+				`INSERT INTO convoys (id, event_id, name, commune, departure_at, meeting_point, destination, trip_type, price_xof, capacity, reserved_count, extra_info, status, revision_number, current_revision_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, 'published', 1, ?, ?, ?)`,
+			).bind(
+				newConvoyId,
+				newEventId,
+				nextName,
+				nextCommune,
+				nextDeparture,
+				nextMeeting,
+				cv.destination,
+				cv.trip_type,
+				nextCap,
+				cv.extra_info,
+				newConvoyRevId,
+				now,
+				now,
+			),
+			c.env.DB.prepare(
+				`INSERT INTO convoy_revisions (id, convoy_id, version_number, snapshot_json, severity, change_summary, changes_json, changed_by, created_at)
+         VALUES (?, ?, 1, ?, 'minor', 'Version initiale (clonée)', NULL, ?, ?)`,
+			).bind(newConvoyRevId, newConvoyId, cvSnap, admin.id, now),
+		);
+	}
+
+	batch.push(
+		c.env.DB.prepare(
+			`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, old_state, new_state, metadata, created_at)
+       VALUES (?, ?, 'event.clone_archive', 'event', ?, ?, ?, ?, ?)`,
+		).bind(
+			crypto.randomUUID(),
+			admin.id,
+			sourceId,
+			JSON.stringify({ status: source.status, price_xof: source.price_xof }),
+			JSON.stringify({ status: 'archived', new_event_id: newEventId, new_price_xof: body.price_xof }),
+			JSON.stringify({ source_event_id: sourceId, new_event_id: newEventId }),
+			now,
+		),
+	);
+
+	await c.env.DB.batch(batch);
+
+	const [newEvent, newConvoys] = await Promise.all([
+		db.selectFrom('events').selectAll().where('id', '=', newEventId).executeTakeFirst(),
+		db.selectFrom('convoys').selectAll().where('event_id', '=', newEventId).execute(),
+	]);
+
+	return c.json(
+		{
+			archived_event_id: sourceId,
+			event: newEvent
+				? {
+						...newEvent,
+						poster_keys: parsePosterKeys(newEvent.poster_key),
+						convoys: newConvoys,
+					}
+				: null,
+		},
+		201,
+	);
 });
 
 adminRoutes.delete('/events/:id', async (c) => {
@@ -634,33 +1125,243 @@ adminRoutes.post('/events/:id/convoys', async (c) => {
 		return c.json({ error: 'Paramètres de convoi invalides' }, 400);
 	}
 
+	const admin = c.get('user');
 	const id = crypto.randomUUID();
+	const revId = `cvrev-${id}-v1`;
 	const now = nowIso();
 	const db = getDB(c.env.DB);
 
-	await db
-		.insertInto('convoys')
-		.values({
+	const snap = buildConvoySnapshot({
+		name: body.name.trim(),
+		commune,
+		departure_at: body.departure_at,
+		meeting_point: body.meeting_point.trim(),
+		destination: body.destination.trim(),
+		trip_type: tripType,
+		price_xof: priceXof,
+		capacity,
+		extra_info: body.extra_info ?? null,
+		status: 'published',
+	});
+
+	await c.env.DB.batch([
+		c.env.DB.prepare(
+			`INSERT INTO convoys (id, event_id, name, commune, departure_at, meeting_point, destination, trip_type, price_xof, capacity, reserved_count, extra_info, status, revision_number, current_revision_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 'published', 1, ?, ?, ?)`,
+		).bind(
 			id,
-			event_id: eventId,
-			name: body.name.trim(),
+			eventId,
+			body.name.trim(),
 			commune,
-			departure_at: body.departure_at,
-			meeting_point: body.meeting_point.trim(),
-			destination: body.destination.trim(),
-			trip_type: tripType,
-			price_xof: priceXof,
+			body.departure_at,
+			body.meeting_point.trim(),
+			body.destination.trim(),
+			tripType,
+			priceXof,
 			capacity,
-			reserved_count: 0,
-			extra_info: body.extra_info ?? null,
-			status: 'published',
-			created_at: now,
-			updated_at: now,
-		})
-		.execute();
+			body.extra_info ?? null,
+			revId,
+			now,
+			now,
+		),
+		c.env.DB.prepare(
+			`INSERT INTO convoy_revisions (id, convoy_id, version_number, snapshot_json, severity, change_summary, changes_json, changed_by, created_at)
+       VALUES (?, ?, 1, ?, 'minor', 'Version initiale', NULL, ?, ?)`,
+		).bind(revId, id, snap, admin.id, now),
+	]);
 
 	const convoy = await db.selectFrom('convoys').selectAll().where('id', '=', id).executeTakeFirst();
 	return c.json({ convoy }, 201);
+});
+
+adminRoutes.patch('/convoys/:id', async (c) => {
+	const admin = c.get('user');
+	const id = c.req.param('id');
+	const bodyRes = await tryCatch(c.req.json<Record<string, unknown>>());
+	const body = bodyRes.ok ? bodyRes.data : {};
+	const db = getDB(c.env.DB);
+
+	const existing = await db.selectFrom('convoys').selectAll().where('id', '=', id).executeTakeFirst();
+	if (!existing) return c.json({ error: 'Convoi introuvable' }, 404);
+
+	const parentEvent = await db
+		.selectFrom('events')
+		.select(['id', 'title'])
+		.where('id', '=', existing.event_id)
+		.executeTakeFirst();
+
+	const allowedFields = [
+		'name',
+		'commune',
+		'departure_at',
+		'meeting_point',
+		'destination',
+		'capacity',
+		'extra_info',
+		'status',
+	] as const;
+
+	const incoming: Record<string, unknown> = {};
+	for (const field of allowedFields) {
+		if (field in body) {
+			incoming[field] = body[field];
+		}
+	}
+
+	if ('commune' in incoming && typeof incoming.commune === 'string') {
+		incoming.commune = incoming.commune.trim();
+		if (!('name' in incoming)) {
+			incoming.name = `Départ ${incoming.commune}`;
+		}
+	}
+	if ('meeting_point' in incoming && typeof incoming.meeting_point === 'string') {
+		incoming.meeting_point = incoming.meeting_point.trim();
+	}
+
+	if ('capacity' in incoming) {
+		const nextCap = Number(incoming.capacity);
+		if (!Number.isInteger(nextCap) || nextCap < 1) {
+			return c.json({ error: 'La capacité doit être un entier >= 1' }, 400);
+		}
+		if (nextCap < existing.reserved_count) {
+			return c.json(
+				{
+					error: `Impossible de réduire la capacité sous le nombre de places déjà réservées (${existing.reserved_count})`,
+					code: 'CAPACITY_BELOW_RESERVED',
+				},
+				409,
+			);
+		}
+		incoming.capacity = nextCap;
+	}
+
+	const { diffs, minSeverity } = computeConvoyDiff(existing as unknown as Record<string, unknown>, incoming);
+	if (diffs.length === 0) {
+		return c.json({ convoy: existing, unchanged: true, notified_users_count: 0 });
+	}
+
+	const severity = resolveSeverity(
+		minSeverity,
+		typeof body.severity === 'string' ? body.severity : null,
+	);
+	const customSummary =
+		typeof body.change_summary === 'string' && body.change_summary.trim()
+			? body.change_summary.trim()
+			: null;
+	const changeSummary = customSummary || formatDiffSummary(diffs);
+
+	const now = nowIso();
+	const nextVersion = (existing.revision_number ?? 1) + 1;
+	const revisionId = `cvrev-${id}-v${nextVersion}-${crypto.randomUUID().slice(0, 6)}`;
+
+	const merged = {
+		...existing,
+		...incoming,
+		revision_number: nextVersion,
+		current_revision_id: revisionId,
+		updated_at: now,
+	};
+
+	const snapshotJson = buildConvoySnapshot({
+		name: String(merged.name),
+		commune: String(merged.commune),
+		departure_at: String(merged.departure_at),
+		meeting_point: String(merged.meeting_point),
+		destination: String(merged.destination),
+		trip_type: String(merged.trip_type),
+		price_xof: Number(merged.price_xof),
+		capacity: Number(merged.capacity),
+		extra_info: merged.extra_info ? String(merged.extra_info) : null,
+		status: String(merged.status),
+	});
+
+	const setCols: string[] = [];
+	const setVals: unknown[] = [];
+	for (const [k, v] of Object.entries(incoming)) {
+		setCols.push(`"${k}" = ?`);
+		setVals.push(v);
+	}
+	setCols.push('"revision_number" = ?', '"current_revision_id" = ?', '"updated_at" = ?');
+	setVals.push(nextVersion, revisionId, now, id);
+
+	const batch: D1PreparedStatement[] = [
+		c.env.DB.prepare(`UPDATE convoys SET ${setCols.join(', ')} WHERE id = ?`).bind(...setVals),
+		c.env.DB.prepare(
+			`INSERT INTO convoy_revisions (id, convoy_id, version_number, snapshot_json, severity, change_summary, changes_json, changed_by, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		).bind(
+			revisionId,
+			id,
+			nextVersion,
+			snapshotJson,
+			severity,
+			changeSummary,
+			JSON.stringify(diffs),
+			admin.id,
+			now,
+		),
+		c.env.DB.prepare(
+			`INSERT INTO audit_logs (id, actor_id, action, entity_type, entity_id, old_state, new_state, metadata, created_at)
+       VALUES (?, ?, 'convoy.revision', 'convoy', ?, ?, ?, ?, ?)`,
+		).bind(
+			crypto.randomUUID(),
+			admin.id,
+			id,
+			JSON.stringify(Object.fromEntries(diffs.map((d) => [d.field, d.before]))),
+			JSON.stringify(Object.fromEntries(diffs.map((d) => [d.field, d.after]))),
+			JSON.stringify({
+				event_id: existing.event_id,
+				revision_id: revisionId,
+				version_number: nextVersion,
+				severity,
+				change_summary: changeSummary,
+			}),
+			now,
+		),
+	];
+
+	const shouldNotify =
+		severity === 'important' || severity === 'critical' || body.notify_customers === true;
+	const outboxIds: string[] = [];
+	let notifiedUsersCount = 0;
+
+	if (shouldNotify) {
+		const affectedUserIds = await getAffectedUserIdsForConvoy(db, id);
+		notifiedUsersCount = affectedUserIds.length;
+		const eventTitle = parentEvent?.title || 'Votre événement';
+		const notifTitle =
+			severity === 'critical'
+				? `Alerte convoi (${merged.commune}) — ${eventTitle}`
+				: `Départ mis à jour (${merged.commune}) — ${eventTitle}`;
+		const notifBody = `${changeSummary} (Révision v${nextVersion} · Votre QR code reste valide).`;
+
+		for (const uid of affectedUserIds) {
+			const built = buildNotificationStatements(c.env.DB, {
+				userId: uid,
+				type: 'convoy_updated',
+				title: notifTitle,
+				body: notifBody,
+				link: '/tickets',
+				tag: `convoy-rev-${id}-v${nextVersion}`,
+				push: true,
+				now,
+			});
+			batch.push(...built.statements);
+			outboxIds.push(built.outboxId);
+		}
+	}
+
+	await c.env.DB.batch(batch);
+	if (outboxIds.length > 0) {
+		scheduleOutboxFlush(c.env, c.executionCtx, outboxIds);
+	}
+
+	const [convoy, revision] = await Promise.all([
+		db.selectFrom('convoys').selectAll().where('id', '=', id).executeTakeFirst(),
+		db.selectFrom('convoy_revisions').selectAll().where('id', '=', revisionId).executeTakeFirst(),
+	]);
+
+	return c.json({ convoy, revision, notified_users_count: notifiedUsersCount });
 });
 
 adminRoutes.get('/convoys/:id/passengers', async (c) => {

@@ -44,10 +44,23 @@ export interface Communes {
   slug: string;
 }
 
+export interface ConvoyRevisions {
+  change_summary: string | null;
+  changed_by: string | null;
+  changes_json: string | null;
+  convoy_id: string;
+  created_at: string;
+  id: string;
+  severity: Generated<string>;
+  snapshot_json: string;
+  version_number: number;
+}
+
 export interface Convoys {
   capacity: number;
   commune: Generated<string>;
   created_at: string;
+  current_revision_id: string | null;
   departure_at: string;
   destination: string;
   event_id: string;
@@ -57,6 +70,7 @@ export interface Convoys {
   name: string;
   price_xof: number;
   reserved_count: Generated<number>;
+  revision_number: Generated<number>;
   status: Generated<string>;
   trip_type: string;
   updated_at: string;
@@ -69,16 +83,30 @@ export interface EventCategories {
   slug: string;
 }
 
+export interface EventRevisions {
+  change_summary: string | null;
+  changed_by: string | null;
+  changes_json: string | null;
+  created_at: string;
+  event_id: string;
+  id: string;
+  severity: Generated<string>;
+  snapshot_json: string;
+  version_number: number;
+}
+
 export interface Events {
   category_id: string | null;
   created_at: string;
   created_by: string;
+  current_revision_id: string | null;
   description: string;
   ends_at: string | null;
   extra_info: string | null;
   id: string;
   poster_key: string | null;
   price_xof: Generated<number>;
+  revision_number: Generated<number>;
   sales_end_at: string | null;
   sales_start_at: string | null;
   slug: string;
@@ -194,14 +222,17 @@ export interface TicketCategories {
 export interface Tickets {
   code: string;
   convoy_id: string | null;
+  convoy_revision_id: string | null;
   created_at: string;
   event_id: string;
+  event_revision_id: string | null;
   id: string;
   item_type: string;
   order_id: string;
   order_item_id: string;
   outbound_scanned_by: string | null;
   outbound_used_at: string | null;
+  purchase_snapshot: string | null;
   qr_token: string;
   return_scanned_by: string | null;
   return_used_at: string | null;
@@ -248,8 +279,10 @@ export interface DB {
   account: Account;
   audit_logs: AuditLogs;
   communes: Communes;
+  convoy_revisions: ConvoyRevisions;
   convoys: Convoys;
   event_categories: EventCategories;
+  event_revisions: EventRevisions;
   events: Events;
   notification_outbox: NotificationOutbox;
   notifications: Notifications;
