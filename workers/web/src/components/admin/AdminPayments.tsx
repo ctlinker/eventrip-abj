@@ -6,6 +6,7 @@ import {
 	getActivePushSubscription,
 	isIosStandaloneRequired,
 	isWebPushSupported,
+	onPushSubscriptionChange,
 	subscribeRealtime,
 } from '../../lib/realtime';
 
@@ -43,6 +44,7 @@ export default function AdminPayments() {
 	const [previewId, setPreviewId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [canOfferPush, setCanOfferPush] = useState(false);
 	const [pushEnabled, setPushEnabled] = useState(false);
 	const [pushBusy, setPushBusy] = useState(false);
 	const filterRef = useRef(filter);
@@ -64,12 +66,18 @@ export default function AdminPayments() {
 	}, [filter]);
 
 	useEffect(() => {
+		setCanOfferPush(isWebPushSupported() || isIosStandaloneRequired());
 		getActivePushSubscription().then((sub) => setPushEnabled(Boolean(sub)));
-		return subscribeRealtime((ev) => {
+		const unsubPush = onPushSubscriptionChange((enabled) => setPushEnabled(enabled));
+		const unsubRt = subscribeRealtime((ev) => {
 			if (ev.type === 'admin_proof_submitted') {
 				load(filterRef.current, true);
 			}
 		});
+		return () => {
+			unsubPush();
+			unsubRt();
+		};
 	}, []);
 
 	async function handleConfirm(id: string) {
@@ -142,7 +150,7 @@ export default function AdminPayments() {
 					))}
 				</div>
 
-				{(isWebPushSupported() || isIosStandaloneRequired()) && !pushEnabled && (
+				{canOfferPush && !pushEnabled && (
 					<button
 						type="button"
 						disabled={pushBusy}

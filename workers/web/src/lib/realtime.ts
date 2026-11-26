@@ -21,10 +21,13 @@ let activeSocket: WebSocket | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 let stableTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let closeIdleTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 let closedManually = false;
 let broadcastInitialized = false;
 let broadcastChannel: BroadcastChannel | null = null;
+
+const PUSH_CHANGE_EVENT = 'eventrip:push-subscription';
 
 function emitUnique(event: RealtimeEvent) {
 	const dedupKey =
@@ -65,6 +68,11 @@ function initSwBridges() {
 		});
 		navigator.serviceWorker.register('/sw.js').catch(() => {});
 	}
+
+	window.addEventListener('beforeunload', () => {
+		closedManually = true;
+		clearTimers();
+	});
 }
 
 function clearTimers() {
@@ -80,10 +88,18 @@ function clearTimers() {
 		clearTimeout(reconnectTimer);
 		reconnectTimer = null;
 	}
+	if (closeIdleTimer) {
+		clearTimeout(closeIdleTimer);
+		closeIdleTimer = null;
+	}
 }
 
 function connectSocket() {
 	if (typeof window === 'undefined' || closedManually || listeners.size === 0) return;
+	if (closeIdleTimer) {
+		clearTimeout(closeIdleTimer);
+		closeIdleTimer = null;
+	}
 	if (
 		activeSocket &&
 		(activeSocket.readyState === WebSocket.OPEN || activeSocket.readyState === WebSocket.CONNECTING)
@@ -100,6 +116,11 @@ function connectSocket() {
 	activeSocket = ws;
 
 	ws.onopen = () => {
+		if (closedManually || listeners.size === 0) {
+			if (activeSocket === ws) activeSocket = null;
+			tryCatchSync(() => ws.close(1000, 'idle'));
+			return;
+		}
 		if (stableTimer) clearTimeout(stableTimer);
 		stableTimer = setTimeout(() => {
 			reconnectAttempt = 0;
@@ -151,12 +172,16 @@ export function subscribeRealtime(listener: RealtimeListener): () => void {
 	return () => {
 		listeners.delete(listener);
 		if (listeners.size === 0) {
-			clearTimers();
-			if (activeSocket) {
-				const ws = activeSocket;
-				activeSocket = null;
-				tryCatchSync(() => ws.close(1000, 'idle'));
-			}
+			if (closeIdleTimer) clearTimeout(closeIdleTimer);
+			closeIdleTimer = setTimeout(() => {
+				if (listeners.size > 0) return;
+				clearTimers();
+				if (activeSocket && activeSocket.readyState === WebSocket.OPEN) {
+					const ws = activeSocket;
+					activeSocket = null;
+					tryCatchSync(() => ws.close(1000, 'idle'));
+				}
+			}, 250);
 		}
 	};
 }
@@ -263,6 +288,7 @@ export async function enableWebPush(): Promise<{ ok: boolean; error?: string }> 
 		return { ok: false, error: 'Impossible d’enregistrer l’abonnement sur le serveur.' };
 	}
 
+	window.dispatchEvent(new CustomEvent(PUSH_CHANGE_EVENT, { detail: { enabled: true } }));
 	return { ok: true };
 }
 
@@ -281,4 +307,17 @@ export async function disableWebPush(unsubscribeBrowser = false): Promise<void> 
 	if (unsubscribeBrowser) {
 		await tryCatch(sub.unsubscribe());
 	}
+	window.dispatchEvent(new CustomEvent(PUSH_CHANGE_EVENT, { detail: { enabled: false } }));
+}
+
+export function onPushSubscriptionChange(cb: (enabled: boolean) => void): () => void {
+	if (typeof window === 'undefined') return () => {};
+	const handler = (ev: Event) => {
+		const detail = (ev as CustomEvent<{ enabled?: boolean }>).detail;
+		if (typeof detail?.enabled === 'boolean') {
+			cb(detail.enabled);
+		}
+	};
+	window.addEventListener(PUSH_CHANGE_EVENT, handler);
+	return () => window.removeEventListener(PUSH_CHANGE_EVENT, handler);
 }

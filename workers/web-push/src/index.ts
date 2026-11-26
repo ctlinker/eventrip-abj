@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 import { generateRequestDetails, setVapidDetails } from 'web-push';
-import { tryCatch, tryCatchSync } from 'utils';
+import { getErrorMessage, tryCatch, tryCatchSync } from 'utils';
 
 export interface PushSubscriptionKeys {
 	p256dh: string;
@@ -42,6 +42,16 @@ export class UserRealtimeHub extends DurableObject<WebPushEnv> {
 	}
 
 	async fetch(request: Request): Promise<Response> {
+		const url = new URL(request.url);
+		if (url.pathname === '/publish' && request.method === 'POST') {
+			const bodyRes = await tryCatch(request.json<Record<string, unknown>>());
+			if (!bodyRes.ok) {
+				return Response.json({ ok: false, delivered: 0, error: 'Invalid JSON' }, { status: 400 });
+			}
+			const delivered = await this.publish(bodyRes.data);
+			return Response.json({ ok: true, delivered });
+		}
+
 		if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
 			return new Response('Expected Upgrade: websocket', { status: 426 });
 		}
@@ -122,10 +132,28 @@ export default {
 				return Response.json({ error: 'userId et event requis' }, { status: 400 });
 			}
 			const hub = env.USER_REALTIME_HUB.get(env.USER_REALTIME_HUB.idFromName(userId));
-			const deliveredRes = await tryCatch(hub.publish(event));
+			const res = await tryCatch(
+				hub.fetch(
+					new Request('http://do/publish', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify(event),
+					}),
+				),
+			);
+			if (!res.ok) {
+				return Response.json({
+					ok: false,
+					delivered: 0,
+					error: getErrorMessage(res.error, 'DO publish failed'),
+				});
+			}
+			const dataRes = await tryCatch(
+				res.data.json() as Promise<{ ok?: boolean; delivered?: number }>,
+			);
 			return Response.json({
-				ok: deliveredRes.ok,
-				delivered: deliveredRes.ok ? deliveredRes.data : 0,
+				ok: dataRes.ok ? Boolean(dataRes.data.ok) : false,
+				delivered: dataRes.ok ? (dataRes.data.delivered ?? 0) : 0,
 			});
 		}
 

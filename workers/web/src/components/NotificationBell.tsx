@@ -7,6 +7,7 @@ import {
 	getActivePushSubscription,
 	isIosStandaloneRequired,
 	isWebPushSupported,
+	onPushSubscriptionChange,
 	subscribeRealtime,
 } from '../lib/realtime';
 
@@ -23,6 +24,7 @@ interface NotificationItem {
 export default function NotificationBell() {
 	const [open, setOpen] = useState(false);
 	const [items, setItems] = useState<NotificationItem[]>([]);
+	const [canOfferPush, setCanOfferPush] = useState(false);
 	const [pushEnabled, setPushEnabled] = useState(false);
 	const [pushBusy, setPushBusy] = useState(false);
 	const [pushHint, setPushHint] = useState<string | null>(null);
@@ -35,8 +37,13 @@ export default function NotificationBell() {
 	}
 
 	useEffect(() => {
+		setCanOfferPush(isWebPushSupported() || isIosStandaloneRequired());
 		loadNotifications();
 		getActivePushSubscription().then((sub) => setPushEnabled(Boolean(sub)));
+
+		const unsubPush = onPushSubscriptionChange((enabled) => {
+			setPushEnabled(enabled);
+		});
 
 		const unsub = subscribeRealtime((ev) => {
 			if (ev.notificationId) {
@@ -66,6 +73,7 @@ export default function NotificationBell() {
 		document.addEventListener('mousedown', onDocClick);
 
 		return () => {
+			unsubPush();
 			unsub();
 			document.removeEventListener('mousedown', onDocClick);
 		};
@@ -109,8 +117,6 @@ export default function NotificationBell() {
 			window.location.href = item.link;
 		}
 	}
-
-	const canOfferPush = isWebPushSupported() || isIosStandaloneRequired();
 
 	return (
 		<div ref={containerRef} class="relative">
