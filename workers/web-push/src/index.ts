@@ -1,5 +1,5 @@
 import { DurableObject } from 'cloudflare:workers';
-import webpush from 'web-push';
+import { generateRequestDetails, setVapidDetails } from 'web-push';
 import { tryCatch, tryCatchSync } from 'utils';
 
 export interface PushSubscriptionKeys {
@@ -144,7 +144,7 @@ export default {
 			return;
 		}
 
-		const vapidInit = tryCatchSync(() => webpush.setVapidDetails(subject, publicKey, privateKey));
+		const vapidInit = tryCatchSync(() => setVapidDetails(subject, publicKey, privateKey));
 		if (!vapidInit.ok) {
 			for (const msg of batch.messages) {
 				msg.ack();
@@ -154,17 +154,35 @@ export default {
 
 		for (const msg of batch.messages) {
 			const job = msg.body;
-			const sendRes = await tryCatch(
-				webpush.sendNotification(job.subscription, JSON.stringify(job.payload), { TTL: 3600 }),
+			const detailsRes = tryCatchSync(() =>
+				generateRequestDetails(job.subscription, JSON.stringify(job.payload), { TTL: 3600 }),
 			);
-
-			if (sendRes.ok) {
+			if (!detailsRes.ok) {
 				msg.ack();
 				continue;
 			}
 
-			const status = (sendRes.error as { statusCode?: number })?.statusCode ?? 0;
-			if (status === 404 || status === 410) {
+			const details = detailsRes.data;
+			const sendRes = await tryCatch(
+				fetch(details.endpoint, {
+					method: details.method || 'POST',
+					headers: Object.fromEntries(
+						Object.entries(details.headers).map(([k, v]) => [k, String(v)]),
+					),
+					body: details.body ? new Uint8Array(details.body) : undefined,
+				}),
+			);
+
+			if (!sendRes.ok) {
+				const delaySeconds = Math.min(3600, 60 * Math.max(1, msg.attempts));
+				msg.retry({ delaySeconds });
+				continue;
+			}
+
+			const status = sendRes.data.status;
+			if (status >= 200 && status < 300) {
+				msg.ack();
+			} else if (status === 404 || status === 410) {
 				// Abonnement révoqué ou expiré : suppression dans D1
 				await tryCatch(
 					env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?')
