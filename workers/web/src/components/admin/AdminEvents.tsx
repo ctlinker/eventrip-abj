@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Plus, ImagePlus, X, Bus, ArrowLeft, Tag, Archive, Trash2, RotateCcw } from 'lucide-preact';
+import { Plus, ImagePlus, X, Bus, ArrowLeft, Tag, Archive, Trash2, RotateCcw, MapPin } from 'lucide-preact';
 import {
 	ABIDJAN_COMMUNES,
 	apiFetch,
 	formatDate,
 	formatXof,
 	getEventPosterUrls,
+	type CommuneItem,
 	type EventCategory,
 } from '../../lib/api';
 
@@ -39,9 +40,12 @@ interface AdminEvent {
 }
 
 export default function AdminEvents() {
-	const [view, setView] = useState<'list' | 'create' | 'categories' | 'departures'>('list');
+	const [view, setView] = useState<'list' | 'create' | 'categories' | 'communes' | 'departures'>('list');
 	const [events, setEvents] = useState<AdminEvent[]>([]);
 	const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
+	const [communes, setCommunes] = useState<CommuneItem[]>([]);
+	const [newCommuneName, setNewCommuneName] = useState('');
+	const [isAddingCommune, setIsAddingCommune] = useState(false);
 	const [defaultMerchantId, setDefaultMerchantId] = useState('');
 
 	// Formulaire création événement
@@ -98,11 +102,13 @@ export default function AdminEvents() {
 		apiFetch<{
 			default_wave_merchant_id?: string;
 			event_categories?: EventCategory[];
+			communes?: CommuneItem[];
 			events: AdminEvent[];
 		}>('/api/admin/events')
 			.then((res) => {
 				setEvents(res.events);
 				setEventCategories(res.event_categories || []);
+				setCommunes(res.communes || []);
 				if (res.default_wave_merchant_id) setDefaultMerchantId(res.default_wave_merchant_id);
 				if (res.events.length > 0 && !depTabEventId) {
 					setDepTabEventId(res.events[0].id);
@@ -111,6 +117,8 @@ export default function AdminEvents() {
 			.catch((err) => setError(err.message))
 			.finally(() => setLoading(false));
 	}
+
+	const communeOptions = communes.length > 0 ? communes.map((c) => c.name) : [...ABIDJAN_COMMUNES];
 
 	useEffect(() => {
 		load();
@@ -139,6 +147,30 @@ export default function AdminEvents() {
 			setError(err.message);
 		} finally {
 			setIsAddingCategory(false);
+		}
+	}
+
+	async function handleAddCommune(e?: Event) {
+		if (e) e.preventDefault();
+		const trimmed = newCommuneName.trim();
+		if (!trimmed || isAddingCommune) return;
+		setError(null);
+		setIsAddingCommune(true);
+		try {
+			const res = await apiFetch<{ commune: CommuneItem }>('/api/admin/communes', {
+				method: 'POST',
+				body: JSON.stringify({ name: trimmed }),
+			});
+			if (res.commune) {
+				setCommunes((prev) =>
+					[...prev, res.commune].sort((a, b) => a.name.localeCompare(b.name, 'fr')),
+				);
+			}
+			setNewCommuneName('');
+		} catch (err: any) {
+			setError(err.message);
+		} finally {
+			setIsAddingCommune(false);
 		}
 	}
 
@@ -451,6 +483,21 @@ export default function AdminEvents() {
 					<button
 						type="button"
 						onClick={() => {
+							setView('communes');
+							setError(null);
+						}}
+						class={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-bold transition-colors cursor-pointer ${
+							view === 'communes'
+								? 'bg-white text-slate-950 border border-slate-200 shadow-xs'
+								: 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
+						}`}
+					>
+						<MapPin class="h-4 w-4 text-brand-600" />
+						Communes ({communeOptions.length})
+					</button>
+					<button
+						type="button"
+						onClick={() => {
 							setView('departures');
 							setError(null);
 						}}
@@ -539,6 +586,50 @@ export default function AdminEvents() {
 				</div>
 			)}
 
+			{view === 'communes' && (
+				<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-5">
+					<div>
+						<h2 class="text-lg font-extrabold text-slate-950">Communes de départ</h2>
+						<p class="text-xs text-slate-500 mt-0.5">
+							Ajoutez des communes ou zones (ex: Grand-Bassam, Jacqueville, Bonoua…) utilisables pour les départs, le filtre d’accueil et l’inscription.
+						</p>
+					</div>
+
+					<form onSubmit={handleAddCommune} class="flex flex-wrap gap-2">
+						<input
+							type="text"
+							name="new_commune"
+							aria-label="Nouvelle commune"
+							required
+							placeholder="Nouvelle commune (ex: Grand-Bassam, Dabou...)"
+							value={newCommuneName}
+							onInput={(e) => setNewCommuneName((e.target as HTMLInputElement).value)}
+							class="flex-1 min-w-[220px] rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-brand-600 focus:outline-none"
+						/>
+						<button
+							type="submit"
+							disabled={isAddingCommune}
+							class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-60 cursor-pointer shadow-xs"
+						>
+							<Plus class="h-4 w-4" />
+							{isAddingCommune ? 'Ajout...' : 'Ajouter'}
+						</button>
+					</form>
+
+					<div class="flex flex-wrap gap-2 pt-2">
+						{communeOptions.map((name) => (
+							<span
+								key={name}
+								class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-800"
+							>
+								<MapPin class="h-3.5 w-3.5 text-brand-600" />
+								{name}
+							</span>
+						))}
+					</div>
+				</div>
+			)}
+
 			{view === 'departures' && (
 				<div class="space-y-6">
 					<form
@@ -592,7 +683,7 @@ export default function AdminEvents() {
 											}
 											class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
 										>
-											{ABIDJAN_COMMUNES.map((c) => (
+											{communeOptions.map((c) => (
 												<option key={c} value={c}>
 													{c}
 												</option>
@@ -856,7 +947,7 @@ export default function AdminEvents() {
 									setInitialDepartures((prev) => [
 										...prev,
 										{
-											commune: ABIDJAN_COMMUNES[prev.length % ABIDJAN_COMMUNES.length],
+											commune: communeOptions[prev.length % communeOptions.length],
 											meetingPoint: '',
 											departureAt: prev[0]?.departureAt || '2026-12-20T14:00',
 											capacity: '55',
@@ -887,7 +978,7 @@ export default function AdminEvents() {
 										}
 										class="sm:col-span-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
 									>
-										{ABIDJAN_COMMUNES.map((c) => (
+										{communeOptions.map((c) => (
 											<option key={c} value={c}>
 												{c}
 											</option>
@@ -1242,7 +1333,7 @@ export default function AdminEvents() {
 												}
 												class="rounded-xl border border-green-200 bg-white px-3 py-1.5 text-sm"
 											>
-												{ABIDJAN_COMMUNES.map((c) => (
+												{communeOptions.map((c) => (
 													<option key={c} value={c}>
 														{c}
 													</option>

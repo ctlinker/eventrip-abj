@@ -16,9 +16,19 @@ publicRoutes.get('/event-categories', async (c) => {
 	return c.json({ event_categories: eventCategories });
 });
 
+publicRoutes.get('/communes', async (c) => {
+	const db = getDB(c.env.DB);
+	const communes = await db
+		.selectFrom('communes')
+		.selectAll()
+		.orderBy('name', 'asc')
+		.execute();
+	return c.json({ communes });
+});
+
 publicRoutes.get('/events', async (c) => {
 	const db = getDB(c.env.DB);
-	const [events, eventCategories] = await Promise.all([
+	const [events, eventCategories, communes] = await Promise.all([
 		db
 			.selectFrom('events as e')
 			.leftJoin('event_categories as ec', 'ec.id', 'e.category_id')
@@ -28,10 +38,11 @@ publicRoutes.get('/events', async (c) => {
 			.orderBy('e.starts_at', 'asc')
 			.execute(),
 		db.selectFrom('event_categories').selectAll().orderBy('name', 'asc').execute(),
+		db.selectFrom('communes').selectAll().orderBy('name', 'asc').execute(),
 	]);
 
 	if (events.length === 0) {
-		return c.json({ events: [], event_categories: eventCategories, wishlist_ids: [] });
+		return c.json({ events: [], event_categories: eventCategories, communes, wishlist_ids: [] });
 	}
 
 	let wishlistIds: string[] = [];
@@ -84,7 +95,12 @@ publicRoutes.get('/events', async (c) => {
 			})),
 	}));
 
-	return c.json({ events: result, event_categories: eventCategories, wishlist_ids: wishlistIds });
+	return c.json({
+		events: result,
+		event_categories: eventCategories,
+		communes,
+		wishlist_ids: wishlistIds,
+	});
 });
 
 publicRoutes.get('/events/:slug', async (c) => {

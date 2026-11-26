@@ -101,9 +101,59 @@ adminRoutes.post('/event-categories', async (c) => {
 	return c.json({ category }, 201);
 });
 
+adminRoutes.get('/communes', async (c) => {
+	const db = getDB(c.env.DB);
+	const communes = await db.selectFrom('communes').selectAll().orderBy('name', 'asc').execute();
+	return c.json({ communes });
+});
+
+adminRoutes.post('/communes', async (c) => {
+	const bodyRes = await tryCatch(c.req.json<{ name?: string }>());
+	const name = bodyRes.ok ? bodyRes.data.name?.trim() : '';
+	if (!name) {
+		return c.json({ error: 'Le nom de la commune est requis' }, 400);
+	}
+
+	const slug = slugify(name);
+	if (!slug) {
+		return c.json({ error: 'Nom de commune invalide' }, 400);
+	}
+
+	const id = `com-${slug}-${crypto.randomUUID().slice(0, 4)}`;
+	const now = nowIso();
+	const db = getDB(c.env.DB);
+
+	const insertRes = await tryCatch(
+		db
+			.insertInto('communes')
+			.values({
+				id,
+				name,
+				slug,
+				created_at: now,
+			})
+			.execute(),
+	);
+
+	if (!insertRes.ok) {
+		if (isUniqueConstraintError(insertRes.error)) {
+			return c.json({ error: 'Cette commune existe déjà' }, 409);
+		}
+		return c.json({ error: 'Impossible de créer la commune' }, 500);
+	}
+
+	const commune = await db
+		.selectFrom('communes')
+		.selectAll()
+		.where('id', '=', id)
+		.executeTakeFirst();
+
+	return c.json({ commune }, 201);
+});
+
 adminRoutes.get('/events', async (c) => {
 	const db = getDB(c.env.DB);
-	const [events, eventCategories] = await Promise.all([
+	const [events, eventCategories, communes] = await Promise.all([
 		db
 			.selectFrom('events as e')
 			.leftJoin('event_categories as ec', 'ec.id', 'e.category_id')
@@ -112,6 +162,7 @@ adminRoutes.get('/events', async (c) => {
 			.orderBy('e.created_at', 'desc')
 			.execute(),
 		db.selectFrom('event_categories').selectAll().orderBy('name', 'asc').execute(),
+		db.selectFrom('communes').selectAll().orderBy('name', 'asc').execute(),
 	]);
 	const categories = events.length
 		? await db.selectFrom('ticket_categories').selectAll().execute()
@@ -121,6 +172,7 @@ adminRoutes.get('/events', async (c) => {
 	return c.json({
 		default_wave_merchant_id: c.env.WAVE_MERCHANT_ID,
 		event_categories: eventCategories,
+		communes,
 		events: events.map((ev) => ({
 			...ev,
 			poster_keys: parsePosterKeys(ev.poster_key),

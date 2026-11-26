@@ -8,6 +8,7 @@ import {
 	formatXof,
 	getEventPosterUrls,
 	sortConvoysByCommune,
+	type CommuneItem,
 	type EventCategory,
 	type PublicEvent,
 } from '../lib/api';
@@ -17,6 +18,7 @@ import CartoonShuttle from './CartoonShuttle';
 export default function EventsCatalog() {
 	const [events, setEvents] = useState<PublicEvent[]>([]);
 	const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
+	const [communeOptions, setCommuneOptions] = useState<string[]>([...ABIDJAN_COMMUNES]);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 	const [commune, setCommune] = useState('');
@@ -31,11 +33,15 @@ export default function EventsCatalog() {
 		apiFetch<{
 			events: PublicEvent[];
 			event_categories?: EventCategory[];
+			communes?: CommuneItem[];
 			wishlist_ids?: string[];
 		}>('/api/events')
 			.then((data) => {
 				setEvents(data.events);
 				setEventCategories(data.event_categories || []);
+				if (data.communes && data.communes.length > 0) {
+					setCommuneOptions(data.communes.map((c) => c.name));
+				}
 				setWishlistIds(new Set(data.wishlist_ids || []));
 			})
 			.catch((err) => setError(err.message))
@@ -169,7 +175,7 @@ export default function EventsCatalog() {
 										class="w-full min-w-0 bg-transparent text-sm font-medium text-slate-700 focus:outline-none cursor-pointer"
 									>
 										<option value="">Départ (tous)</option>
-										{ABIDJAN_COMMUNES.map((c) => (
+										{communeOptions.map((c) => (
 											<option key={c} value={c}>
 												{c}
 											</option>

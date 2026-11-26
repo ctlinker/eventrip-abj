@@ -7,6 +7,7 @@ import migration004 from '../../../packages/db/migrations/004_event_single_price
 import migration005 from '../../../packages/db/migrations/005_event_categories.sql?raw';
 import migration006 from '../../../packages/db/migrations/006_wishlists.sql?raw';
 import migration007 from '../../../packages/db/migrations/007_notifications_realtime_push.sql?raw';
+import migration008 from '../../../packages/db/migrations/008_communes.sql?raw';
 import { expirePendingOrders, sendExpiringOrderReminders } from '../src/services/orders';
 import { maybeBootstrapSuperAdmin } from '../src/lib/bootstrap';
 
@@ -60,6 +61,7 @@ describe('Eventrip API Core', () => {
 		await applySql(migration005);
 		await applySql(migration006);
 		await applySql(migration007);
+		await applySql(migration008);
 
 		const client = await signUpAndGetCookie('Kouame Client', 'client@eventrip.ci', '+2250700000001');
 		clientCookie = client.cookie;
@@ -87,6 +89,24 @@ describe('Eventrip API Core', () => {
 		});
 		expect(newCatRes.status).toBe(201);
 		const newCatData = (await newCatRes.json()) as { category: { id: string; name: string } };
+
+		// Ajouter une commune personnalisée et vérifier la liste publique + anti-doublon
+		const newComRes = await SELF.fetch('https://example.com/api/admin/communes', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({ name: 'Grand-Bassam' }),
+		});
+		expect(newComRes.status).toBe(201);
+		const dupComRes = await SELF.fetch('https://example.com/api/admin/communes', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: adminVerifierCookie },
+			body: JSON.stringify({ name: 'Grand-Bassam' }),
+		});
+		expect(dupComRes.status).toBe(409);
+		const pubComRes = await SELF.fetch('https://example.com/api/communes');
+		expect(pubComRes.status).toBe(200);
+		const pubComData = (await pubComRes.json()) as { communes: Array<{ name: string }> };
+		expect(pubComData.communes.some((c) => c.name === 'Grand-Bassam')).toBe(true);
 
 		// Créer un événement publié avec prix unique + catégorie + départ initial (55 pl. par défaut)
 		const evRes = await SELF.fetch('https://example.com/api/admin/events', {

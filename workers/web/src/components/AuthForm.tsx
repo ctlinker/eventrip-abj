@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { ABIDJAN_COMMUNES, apiFetch } from '../lib/api';
+import { ABIDJAN_COMMUNES, apiFetch, type CommuneItem } from '../lib/api';
 
 function translateAuthError(message?: string): string {
 	if (!message) return 'Erreur d’authentification';
@@ -28,6 +28,7 @@ export default function AuthForm() {
 	const [email, setEmail] = useState('');
 	const [phone, setPhone] = useState('');
 	const [commune, setCommune] = useState('');
+	const [communeOptions, setCommuneOptions] = useState<string[]>([...ABIDJAN_COMMUNES]);
 	const [password, setPassword] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -40,6 +41,13 @@ export default function AuthForm() {
 
 	// Synchroniser d'éventuelles saisies/autofill effectuées avant l'hydratation
 	useEffect(() => {
+		apiFetch<{ communes?: CommuneItem[] }>('/api/communes')
+			.then((res) => {
+				if (res.communes && res.communes.length > 0) {
+					setCommuneOptions(res.communes.map((c) => c.name));
+				}
+			})
+			.catch(() => {});
 		if (emailRef.current?.value && !email) setEmail(emailRef.current.value);
 		if (passwordRef.current?.value && !password) setPassword(passwordRef.current.value);
 		if (nameRef.current?.value && !name) setName(nameRef.current.value);
@@ -176,7 +184,7 @@ export default function AuthForm() {
 								class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:border-brand-600 focus:outline-none"
 							>
 								<option value="">Sélectionner une commune...</option>
-								{ABIDJAN_COMMUNES.map((c) => (
+								{communeOptions.map((c) => (
 									<option key={c} value={c}>
 										{c}
 									</option>

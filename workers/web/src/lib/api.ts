@@ -76,6 +76,12 @@ export interface EventCategory {
 	slug: string;
 }
 
+export interface CommuneItem {
+	id: string;
+	name: string;
+	slug: string;
+}
+
 export interface PublicEvent {
 	id: string;
 	slug: string;

@@ -37,6 +37,13 @@ export interface AuditLogs {
   old_state: string | null;
 }
 
+export interface Communes {
+  created_at: string;
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export interface Convoys {
   capacity: number;
   commune: Generated<string>;
@@ -240,6 +247,7 @@ export interface Wishlists {
 export interface DB {
   account: Account;
   audit_logs: AuditLogs;
+  communes: Communes;
   convoys: Convoys;
   event_categories: EventCategories;
   events: Events;
