@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Ticket, ShoppingBag, LogIn, LogOut, ShieldCheck, Compass, Heart } from 'lucide-preact';
 import { apiFetch, type ApiUser } from '../lib/api';
-import { disableWebPush, disconnectRealtime } from '../lib/realtime';
+import { disableWebPush, disconnectRealtime, subscribeRealtime } from '../lib/realtime';
 import NotificationBell from './NotificationBell';
 
 interface Props {
@@ -10,9 +10,15 @@ interface Props {
 	currentPath?: string;
 }
 
+interface OrderBadgeRow {
+	status: string;
+	expires_at: string;
+}
+
 export default function Navbar({ initialUser = null, ssrResolved = false, currentPath = '/' }: Props) {
 	const [user, setUser] = useState<ApiUser | null>(initialUser);
 	const [loaded, setLoaded] = useState(ssrResolved);
+	const [pendingProofCount, setPendingProofCount] = useState(0);
 
 	useEffect(() => {
 		if (ssrResolved) return;
@@ -21,6 +27,55 @@ export default function Navbar({ initialUser = null, ssrResolved = false, curren
 			.catch(() => setUser(null))
 			.finally(() => setLoaded(true));
 	}, [ssrResolved]);
+
+	const loadPendingProofCount = useCallback(() => {
+		if (!user) {
+			setPendingProofCount(0);
+			return;
+		}
+		apiFetch<{ orders: OrderBadgeRow[] }>('/api/orders')
+			.then((res) => {
+				const now = Date.now();
+				const count = (res.orders || []).filter(
+					(o) => o.status === 'pending_payment' && new Date(o.expires_at).getTime() > now,
+				).length;
+				setPendingProofCount(count);
+			})
+			.catch(() => {});
+	}, [user]);
+
+	useEffect(() => {
+		if (!user) {
+			setPendingProofCount(0);
+			return;
+		}
+
+		loadPendingProofCount();
+
+		const unsub = subscribeRealtime((ev) => {
+			if (
+				ev.type === 'order_created' ||
+				ev.type === 'proof_submitted' ||
+				ev.type === 'order_expired' ||
+				ev.type === 'payment_confirmed' ||
+				ev.type === 'payment_rejected'
+			) {
+				loadPendingProofCount();
+			}
+		});
+
+		const onVisibility = () => {
+			if (document.visibilityState === 'visible') {
+				loadPendingProofCount();
+			}
+		};
+		document.addEventListener('visibilitychange', onVisibility);
+
+		return () => {
+			unsub();
+			document.removeEventListener('visibilitychange', onVisibility);
+		};
+	}, [user, loadPendingProofCount]);
 
 	async function handleLogout() {
 		await disableWebPush(false);
@@ -68,9 +123,27 @@ export default function Navbar({ initialUser = null, ssrResolved = false, curren
 								<Heart class="h-4 w-4 sm:hidden" />
 								<span class="hidden sm:inline">Favoris</span>
 							</a>
-							<a href="/orders" title="Mes commandes" aria-label="Mes commandes" class={navLinkCls('/orders')}>
+							<a
+								href="/orders"
+								title={
+									pendingProofCount > 0
+										? `Mes commandes (${pendingProofCount} preuve(s) à fournir)`
+										: 'Mes commandes'
+								}
+								aria-label={
+									pendingProofCount > 0
+										? `Mes commandes, ${pendingProofCount} preuve à fournir`
+										: 'Mes commandes'
+								}
+								class={`relative ${navLinkCls('/orders')}`}
+							>
 								<ShoppingBag class="h-4 w-4 sm:hidden" />
 								<span class="hidden sm:inline">Commandes</span>
+								{pendingProofCount > 0 && (
+									<span class="absolute top-1 right-1 sm:static flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 sm:px-1.5 text-[10px] font-extrabold leading-none text-white shadow-xs">
+										{pendingProofCount > 99 ? '99+' : pendingProofCount}
+									</span>
+								)}
 							</a>
 							<a href="/tickets" title="Mes billets" aria-label="Mes billets" class={navLinkCls('/tickets')}>
 								<Ticket class="h-4 w-4 sm:hidden" />
