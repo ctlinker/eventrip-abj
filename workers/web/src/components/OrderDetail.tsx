@@ -1,7 +1,18 @@
-import { useEffect, useState } from 'preact/hooks';
-import QRCode from 'qrcode';
-import { Clock, Upload, CheckCircle2, AlertCircle, ExternalLink, Copy, Check, ImagePlus, X, BellRing } from 'lucide-preact';
-import { apiFetch, formatDate, formatXof } from '../lib/api';
+import { useEffect, useState } from "preact/hooks";
+import QRCode from "qrcode";
+import {
+	AlertCircle,
+	BellRing,
+	Check,
+	CheckCircle2,
+	Clock,
+	Copy,
+	ExternalLink,
+	ImagePlus,
+	Upload,
+	X,
+} from "lucide-preact";
+import { apiFetch, formatDate, formatXof } from "../lib/api";
 import {
 	enableWebPush,
 	getActivePushSubscription,
@@ -71,9 +82,9 @@ export default function OrderDetail({ orderId }: Props) {
   const [remainingText, setRemainingText] = useState("");
   const [waveQrSrc, setWaveQrSrc] = useState("");
   const [copied, setCopied] = useState(false);
-	const [pushReady, setPushReady] = useState(true);
-	const [pushLoading, setPushLoading] = useState(false);
-	const [pushMessage, setPushMessage] = useState<string | null>(null);
+  const [pushReady, setPushReady] = useState(true);
+  const [pushLoading, setPushLoading] = useState(false);
+  const [pushMessage, setPushMessage] = useState<string | null>(null);
 
   function load() {
     apiFetch<OrderDetailResponse>(`/api/orders/${orderId}`)
@@ -96,35 +107,35 @@ export default function OrderDetail({ orderId }: Props) {
       .finally(() => setLoading(false));
   }
 
-	useEffect(() => {
-		load();
-		if (isWebPushSupported() || isIosStandaloneRequired()) {
-			getActivePushSubscription().then((sub) => setPushReady(Boolean(sub)));
-		}
+  useEffect(() => {
+    load();
+    if (isWebPushSupported() || isIosStandaloneRequired()) {
+      getActivePushSubscription().then((sub) => setPushReady(Boolean(sub)));
+    }
 
 		const unsubPush = onPushSubscriptionChange((enabled) => {
 			setPushReady(enabled);
 		});
 
-		const unsub = subscribeRealtime((ev) => {
-			if (!ev.orderId || ev.orderId === orderId) {
-				if (
-					ev.type === 'payment_confirmed' ||
-					ev.type === 'payment_rejected' ||
-					ev.type === 'order_expired' ||
-					ev.type === 'order_expiring_soon'
-				) {
-					load();
-				}
-			}
-		});
+    const unsub = subscribeRealtime((ev) => {
+      if (!ev.orderId || ev.orderId === orderId) {
+        if (
+          ev.type === "payment_confirmed" ||
+          ev.type === "payment_rejected" ||
+          ev.type === "order_expired" ||
+          ev.type === "order_expiring_soon"
+        ) {
+          load();
+        }
+      }
+    });
 
-		const onVisibility = () => {
-			if (document.visibilityState === 'visible') {
-				load();
-			}
-		};
-		document.addEventListener('visibilitychange', onVisibility);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        load();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
 
 		return () => {
 			unsubPush();
@@ -307,43 +318,46 @@ export default function OrderDetail({ orderId }: Props) {
           )}
         </div>
 
-				{order.status === 'rejected' && payment?.rejection_reason && (
-					<div class="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-						<AlertCircle class="h-5 w-5 shrink-0 mt-0.5" />
-						<div>
-							<p class="font-bold">Paiement rejeté</p>
-							<p>{payment.rejection_reason}</p>
-						</div>
-					</div>
-				)}
+        {order.status === "rejected" && payment?.rejection_reason && (
+          <div class="mt-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+            <AlertCircle class="h-5 w-5 shrink-0 mt-0.5" />
+            <div>
+              <p class="font-bold">Paiement rejeté</p>
+              <p>{payment.rejection_reason}</p>
+            </div>
+          </div>
+        )}
 
-				{!pushReady && (order.status === 'pending_payment' || order.status === 'under_review') && (
-					<div class="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 text-xs">
-						<div class="flex items-center gap-2 text-slate-800">
-							<BellRing class="h-4 w-4 text-emerald-600 shrink-0" />
-							<span>
-								Recevez une alerte instantanée dès que vos billets QR sont activés.
-								{pushMessage ? ` (${pushMessage})` : ''}
-							</span>
-						</div>
-						<button
-							type="button"
-							disabled={pushLoading}
-							onClick={async () => {
-								setPushLoading(true);
-								setPushMessage(null);
-								const res = await enableWebPush();
-								if (res.ok) setPushReady(true);
-								else if (res.error) setPushMessage(res.error);
-								setPushLoading(false);
-							}}
-							class="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white hover:bg-emerald-700 cursor-pointer"
-						>
-							{pushLoading ? 'Activation...' : 'Activer les alertes'}
-						</button>
-					</div>
-				)}
-			</div>
+        {!pushReady &&
+          (order.status === "pending_payment" ||
+            order.status === "under_review") && (
+            <div class="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 text-xs">
+              <div class="flex items-center gap-2 text-slate-800">
+                <BellRing class="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>
+                  Recevez une alerte instantanée dès que vos billets QR sont
+                  activés.
+                  {pushMessage ? ` (${pushMessage})` : ""}
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={pushLoading}
+                onClick={async () => {
+                  setPushLoading(true);
+                  setPushMessage(null);
+                  const res = await enableWebPush();
+                  if (res.ok) setPushReady(true);
+                  else if (res.error) setPushMessage(res.error);
+                  setPushLoading(false);
+                }}
+                class="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white hover:bg-emerald-700 cursor-pointer"
+              >
+                {pushLoading ? "Activation..." : "Activer les alertes"}
+              </button>
+            </div>
+          )}
+      </div>
 
       {order.status === "pending_payment" && (
         <div class="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-6">

@@ -66,7 +66,7 @@ function initSwBridges() {
 				emitUnique(msg.payload as RealtimeEvent);
 			}
 		});
-		navigator.serviceWorker.register('/sw.js').catch(() => {});
+		navigator.serviceWorker.register('/sw.js').catch(() => { });
 	}
 
 	window.addEventListener('beforeunload', () => {
@@ -108,7 +108,11 @@ function connectSocket() {
 	}
 
 	const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-	const wsUrl = `${proto}//${window.location.host}/api/realtime/ws`;
+	const wsHost =
+		import.meta.env.DEV && window.location.port === '4321'
+			? `${window.location.hostname}:8787`
+			: window.location.host;
+	const wsUrl = `${proto}//${wsHost}/api/realtime/ws`;
 	const wsRes = tryCatchSync(() => new WebSocket(wsUrl));
 	if (!wsRes.ok) return;
 

@@ -112,7 +112,7 @@ Migration additive située dans `packages/db/migrations/007_notifications_realti
 ## 6. Développement local & Déploiement Production
 
 ### En local (3 processus)
-Les fichiers `.dev.vars` locaux (ignorés par Git, voir `workers/api/.dev.vars.example` et `workers/web-push/.dev.vars.example`) contiennent la paire VAPID de développement. `workers/web-push` partage l’état D1 local de `workers/api` via `--persist-to ../api/.wrangler/state` :
+En local, le client `realtime.ts` dirige la WebSocket directement sur `ws://<hostname>:8787/api/realtime/ws` lorsque la page tourne sur le port Vite `4321` (même cookie `localhost`, évitant les coupures `1006` du proxy HTTP Vite sur `Upgrade`), tandis qu'en production il passe en same-origin par le Service Binding `API` :
 
 ```bash
 # 1. Worker Web Push + Durable Object UserRealtimeHub (:8788)
