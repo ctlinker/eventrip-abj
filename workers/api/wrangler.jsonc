@@ -7,6 +7,7 @@
 	"name": "api",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-11-23",
+	"compatibility_flags": ["nodejs_compat"],
 	"observability": {
 		"enabled": true
 	},
@@ -16,16 +17,30 @@
 			"binding": "DB",
 			"database_name": "eventrip-db",
 			"database_id": "7a684326-e718-49ef-abd4-671def938220",
-			"migrations_dir": "../../packages/db/migrations",
+			"migrations_dir": "../../packages/db/migrations"
 		}
 	],
 	"r2_buckets": [
 		{
 			"binding": "UPLOADS",
 			"bucket_name": "eventrip-uploads",
-			"preview_bucket_name": "eventrip-uploads-preview",
+			"preview_bucket_name": "eventrip-uploads-preview"
 		}
 	],
+	"services": [
+		{
+			"binding": "WEB_PUSH",
+			"service": "web-push"
+		}
+	],
+	"queues": {
+		"producers": [
+			{
+				"binding": "PUSH_QUEUE",
+				"queue": "push-notifications"
+			}
+		]
+	},
 	"triggers": {
 		"crons": ["*/5 * * * *"]
 	},
@@ -34,33 +49,5 @@
 	},
 	"secrets": {
 		"required": ["BOOTSTRAP_SUPER_ADMIN_EMAIL"]
-	},
-	/**
-	 * Smart Placement
-	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
-	 */
-	// "placement": {  "mode": "smart" }
-	/**
-	 * Bindings
-	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
-	 * databases, object storage, AI inference, real-time communication and more.
-	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
-	 */
-	/**
-	 * Environment Variables
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
-	 * Note: Use secrets to store sensitive data.
-	 * https://developers.cloudflare.com/workers/configuration/secrets/
-	 */
-	// "vars": {  "MY_VARIABLE": "production_value" }
-	/**
-	 * Static Assets
-	 * https://developers.cloudflare.com/workers/static-assets/binding/
-	 */
-	// "assets": {  "directory": "./public/",  "binding": "ASSETS" }
-	/**
-	 * Service Bindings (communicate between multiple Workers)
-	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
-	 */
-	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
+	}
 }

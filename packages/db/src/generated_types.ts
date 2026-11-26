@@ -83,6 +83,21 @@ export interface Events {
   wave_payment_url: string | null;
 }
 
+export interface NotificationOutbox {
+  attempts: Generated<number>;
+  created_at: string;
+  dispatched_at: string | null;
+  event_type: string;
+  id: string;
+  last_error: string | null;
+  next_attempt_at: string;
+  notification_id: string | null;
+  payload: string;
+  push_enabled: Generated<number>;
+  status: Generated<string>;
+  user_id: string;
+}
+
 export interface Notifications {
   body: string;
   created_at: string;
@@ -108,6 +123,7 @@ export interface OrderItems {
 export interface Orders {
   created_at: string;
   expires_at: string;
+  expiry_reminder_sent_at: string | null;
   id: string;
   reference: string;
   status: Generated<string>;
@@ -131,6 +147,17 @@ export interface Payments {
   updated_at: string;
   user_id: string;
   wave_transaction_ref: string | null;
+}
+
+export interface PushSubscriptions {
+  auth: string;
+  created_at: string;
+  endpoint: string;
+  id: string;
+  p256dh: string;
+  updated_at: string;
+  user_agent: string | null;
+  user_id: string;
 }
 
 export interface Session {
@@ -216,10 +243,12 @@ export interface DB {
   convoys: Convoys;
   event_categories: EventCategories;
   events: Events;
+  notification_outbox: NotificationOutbox;
   notifications: Notifications;
   order_items: OrderItems;
   orders: Orders;
   payments: Payments;
+  push_subscriptions: PushSubscriptions;
   session: Session;
   ticket_categories: TicketCategories;
   tickets: Tickets;

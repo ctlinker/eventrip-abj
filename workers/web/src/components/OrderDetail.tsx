@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'preact/hooks';
 import QRCode from 'qrcode';
-import { Clock, Upload, CheckCircle2, AlertCircle, ExternalLink, Copy, Check, ImagePlus, X } from 'lucide-preact';
+import { Clock, Upload, CheckCircle2, AlertCircle, ExternalLink, Copy, Check, ImagePlus, X, BellRing } from 'lucide-preact';
 import { apiFetch, formatDate, formatXof } from '../lib/api';
+import {
+	enableWebPush,
+	getActivePushSubscription,
+	isIosStandaloneRequired,
+	isWebPushSupported,
+	subscribeRealtime,
+} from '../lib/realtime';
 
 interface Props {
 	orderId: string;
@@ -63,6 +70,9 @@ export default function OrderDetail({ orderId }: Props) {
 	const [remainingText, setRemainingText] = useState('');
 	const [waveQrSrc, setWaveQrSrc] = useState('');
 	const [copied, setCopied] = useState(false);
+	const [pushReady, setPushReady] = useState(true);
+	const [pushLoading, setPushLoading] = useState(false);
+	const [pushMessage, setPushMessage] = useState<string | null>(null);
 
 	function load() {
 		apiFetch<OrderDetailResponse>(`/api/orders/${orderId}`)
@@ -86,6 +96,34 @@ export default function OrderDetail({ orderId }: Props) {
 
 	useEffect(() => {
 		load();
+		if (isWebPushSupported() || isIosStandaloneRequired()) {
+			getActivePushSubscription().then((sub) => setPushReady(Boolean(sub)));
+		}
+
+		const unsub = subscribeRealtime((ev) => {
+			if (!ev.orderId || ev.orderId === orderId) {
+				if (
+					ev.type === 'payment_confirmed' ||
+					ev.type === 'payment_rejected' ||
+					ev.type === 'order_expired' ||
+					ev.type === 'order_expiring_soon'
+				) {
+					load();
+				}
+			}
+		});
+
+		const onVisibility = () => {
+			if (document.visibilityState === 'visible') {
+				load();
+			}
+		};
+		document.addEventListener('visibilitychange', onVisibility);
+
+		return () => {
+			unsub();
+			document.removeEventListener('visibilitychange', onVisibility);
+		};
 	}, [orderId]);
 
 	useEffect(() => {
@@ -252,6 +290,33 @@ export default function OrderDetail({ orderId }: Props) {
 							<p class="font-bold">Paiement rejeté</p>
 							<p>{payment.rejection_reason}</p>
 						</div>
+					</div>
+				)}
+
+				{!pushReady && (order.status === 'pending_payment' || order.status === 'under_review') && (
+					<div class="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 text-xs">
+						<div class="flex items-center gap-2 text-slate-800">
+							<BellRing class="h-4 w-4 text-emerald-600 shrink-0" />
+							<span>
+								Recevez une alerte instantanée dès que vos billets QR sont activés.
+								{pushMessage ? ` (${pushMessage})` : ''}
+							</span>
+						</div>
+						<button
+							type="button"
+							disabled={pushLoading}
+							onClick={async () => {
+								setPushLoading(true);
+								setPushMessage(null);
+								const res = await enableWebPush();
+								if (res.ok) setPushReady(true);
+								else if (res.error) setPushMessage(res.error);
+								setPushLoading(false);
+							}}
+							class="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white hover:bg-emerald-700 cursor-pointer"
+						>
+							{pushLoading ? 'Activation...' : 'Activer les alertes'}
+						</button>
 					</div>
 				)}
 			</div>

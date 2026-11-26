@@ -1,6 +1,13 @@
-import { useEffect, useState } from 'preact/hooks';
-import { Check, X, Eye } from 'lucide-preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
+import { Check, X, Eye, BellRing } from 'lucide-preact';
 import { API_BASE, apiFetch, formatDate, formatXof } from '../../lib/api';
+import {
+	enableWebPush,
+	getActivePushSubscription,
+	isIosStandaloneRequired,
+	isWebPushSupported,
+	subscribeRealtime,
+} from '../../lib/realtime';
 
 interface AdminPayment {
 	id: string;
@@ -36,19 +43,34 @@ export default function AdminPayments() {
 	const [previewId, setPreviewId] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [pushEnabled, setPushEnabled] = useState(false);
+	const [pushBusy, setPushBusy] = useState(false);
+	const filterRef = useRef(filter);
+	filterRef.current = filter;
 
-	function load(status = filter) {
-		setLoading(true);
+	function load(status = filter, silent = false) {
+		if (!silent) setLoading(true);
 		const qs = status ? `?status=${status}` : '';
 		apiFetch<{ payments: AdminPayment[] }>(`/api/admin/payments${qs}`)
 			.then((res) => setPayments(res.payments))
 			.catch((err) => setError(err.message))
-			.finally(() => setLoading(false));
+			.finally(() => {
+				if (!silent) setLoading(false);
+			});
 	}
 
 	useEffect(() => {
 		load(filter);
 	}, [filter]);
+
+	useEffect(() => {
+		getActivePushSubscription().then((sub) => setPushEnabled(Boolean(sub)));
+		return subscribeRealtime((ev) => {
+			if (ev.type === 'admin_proof_submitted') {
+				load(filterRef.current, true);
+			}
+		});
+	}, []);
 
 	async function handleConfirm(id: string) {
 		setError(null);
@@ -97,26 +119,46 @@ export default function AdminPayments() {
 
 	return (
 		<div class="space-y-6">
-			<div class="flex flex-wrap gap-2">
-				{[
-					{ value: 'pending', label: 'En attente' },
-					{ value: 'confirmed', label: 'Confirmés' },
-					{ value: 'rejected', label: 'Rejetés' },
-					{ value: '', label: 'Tous' },
-				].map((opt) => (
+			<div class="flex flex-wrap items-center justify-between gap-3">
+				<div class="flex flex-wrap gap-2">
+					{[
+						{ value: 'pending', label: 'En attente' },
+						{ value: 'confirmed', label: 'Confirmés' },
+						{ value: 'rejected', label: 'Rejetés' },
+						{ value: '', label: 'Tous' },
+					].map((opt) => (
+						<button
+							key={opt.label}
+							type="button"
+							onClick={() => setFilter(opt.value as any)}
+							class={`rounded-xl px-3.5 py-1.5 text-sm font-bold border transition-colors cursor-pointer ${
+								filter === opt.value
+									? 'bg-slate-900 text-white border-slate-900'
+									: 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-950'
+							}`}
+						>
+							{opt.label}
+						</button>
+					))}
+				</div>
+
+				{(isWebPushSupported() || isIosStandaloneRequired()) && !pushEnabled && (
 					<button
-						key={opt.label}
 						type="button"
-						onClick={() => setFilter(opt.value as any)}
-						class={`rounded-xl px-3.5 py-1.5 text-sm font-bold border transition-colors cursor-pointer ${
-							filter === opt.value
-								? 'bg-slate-900 text-white border-slate-900'
-								: 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-950'
-						}`}
+						disabled={pushBusy}
+						onClick={async () => {
+							setPushBusy(true);
+							const res = await enableWebPush();
+							if (res.ok) setPushEnabled(true);
+							else if (res.error) setError(res.error);
+							setPushBusy(false);
+						}}
+						class="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
 					>
-						{opt.label}
+						<BellRing class="h-3.5 w-3.5 text-emerald-600" />
+						{pushBusy ? 'Activation...' : 'Alertes Push nouveaux paiements'}
 					</button>
-				))}
+				)}
 			</div>
 
 			{error && (

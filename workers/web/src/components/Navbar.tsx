@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'preact/hooks';
 import { Bus, Ticket, ShoppingBag, LogIn, LogOut, ShieldCheck, Compass, Heart } from 'lucide-preact';
 import { apiFetch, type ApiUser } from '../lib/api';
+import { disableWebPush, disconnectRealtime } from '../lib/realtime';
+import NotificationBell from './NotificationBell';
 
 interface Props {
 	initialUser?: ApiUser | null;
@@ -21,6 +23,8 @@ export default function Navbar({ initialUser = null, ssrResolved = false, curren
 	}, [ssrResolved]);
 
 	async function handleLogout() {
+		await disableWebPush(false);
+		disconnectRealtime();
 		await apiFetch('/api/auth/sign-out', { method: 'POST', body: '{}' }).catch(() => {});
 		window.location.href = '/';
 	}
@@ -68,6 +72,7 @@ export default function Navbar({ initialUser = null, ssrResolved = false, curren
 								<Ticket class="h-4 w-4 sm:hidden" />
 								<span class="hidden sm:inline">Mes billets</span>
 							</a>
+							<NotificationBell />
 						</>
 					)}
 

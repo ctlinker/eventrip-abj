@@ -11,6 +11,11 @@ import {
 	nowIso,
 	parsePosterKeys,
 } from '../lib/utils';
+import {
+	buildNotificationStatements,
+	listPaymentVerifierIds,
+	scheduleOutboxFlush,
+} from '../services/notifications';
 import type { AppEnv } from '../types';
 
 export const clientRoutes = new Hono<AppEnv>();
@@ -298,15 +303,20 @@ clientRoutes.post('/orders', async (c) => {
 		}
 	}
 
-	await c.env.DB.batch(insertStatements);
-
-	await createNotification(db, {
+	const orderNotif = buildNotificationStatements(c.env.DB, {
 		userId: user.id,
 		type: 'order_created',
 		title: `Commande ${reference} créée`,
 		body: `Montant à régler : ${totalAmountXof} FCFA avant le ${expiresAt}.`,
 		link: `/orders/${orderId}`,
+		orderId,
+		push: false,
+		now,
 	});
+	insertStatements.push(...orderNotif.statements);
+
+	await c.env.DB.batch(insertStatements);
+	scheduleOutboxFlush(c.env, c.executionCtx, [orderNotif.outboxId]);
 
 	const waveLinks = Array.from(
 		new Set(resolved.map((r) => r.wavePaymentUrl).filter((u): u is string => Boolean(u))),
@@ -626,25 +636,45 @@ clientRoutes.post('/orders/:id/proof', async (c) => {
 		return c.json({ error: 'La commande a expiré ou a déjà été traitée' }, 409);
 	}
 
-	await db
-		.updateTable('payments')
-		.set({
-			proof_image_key: key,
-			wave_transaction_ref: waveRef,
-			payer_phone: payerPhone,
-			submitted_at: now,
-			updated_at: now,
-		})
-		.where('order_id', '=', orderId)
-		.execute();
-
-	await createNotification(db, {
+	const clientProofNotif = buildNotificationStatements(c.env.DB, {
 		userId: user.id,
 		type: 'proof_submitted',
 		title: `Justificatif reçu (${order.reference})`,
 		body: 'Votre justificatif Wave est en cours de vérification par un administrateur.',
 		link: `/orders/${orderId}`,
+		orderId,
+		push: false,
+		now,
 	});
+
+	const verifierIds = await listPaymentVerifierIds(c.env.DB);
+	const adminProofNotifs = verifierIds.map((verifierId) =>
+		buildNotificationStatements(c.env.DB, {
+			userId: verifierId,
+			type: 'admin_proof_submitted',
+			title: `Justificatif Wave reçu (${order.reference})`,
+			body: `${order.total_amount_xof} FCFA à vérifier${waveRef ? ` • Réf ${waveRef}` : ''}.`,
+			link: '/admin/payments',
+			orderId,
+			push: true,
+			now,
+		}),
+	);
+
+	await c.env.DB.batch([
+		c.env.DB.prepare(
+			`UPDATE payments
+       SET proof_image_key = ?, wave_transaction_ref = ?, payer_phone = ?, submitted_at = ?, updated_at = ?
+       WHERE order_id = ?`,
+		).bind(key, waveRef, payerPhone, now, now, orderId),
+		...clientProofNotif.statements,
+		...adminProofNotifs.flatMap((n) => n.statements),
+	]);
+
+	scheduleOutboxFlush(c.env, c.executionCtx, [
+		clientProofNotif.outboxId,
+		...adminProofNotifs.map((n) => n.outboxId),
+	]);
 
 	return c.json({
 		ok: true,
@@ -730,6 +760,124 @@ clientRoutes.patch('/notifications/:id/read', async (c) => {
 		.execute();
 
 	return c.json({ ok: true });
+});
+
+clientRoutes.post('/notifications/read-all', async (c) => {
+	const user = c.get('user');
+	const db = getDB(c.env.DB);
+
+	await db
+		.updateTable('notifications')
+		.set({ is_read: 1 })
+		.where('user_id', '=', user.id)
+		.where('is_read', '=', 0)
+		.execute();
+
+	return c.json({ ok: true });
+});
+
+clientRoutes.get('/push/vapid-key', async (c) => {
+	const envVars = c.env as Env & { VAPID_PUBLIC_KEY?: string; VAPID_PRIVATE_KEY?: string };
+	if (envVars.VAPID_PUBLIC_KEY?.trim()) {
+		return c.json({
+			publicKey: envVars.VAPID_PUBLIC_KEY.trim(),
+			enabled: true,
+		});
+	}
+
+	if (c.env.WEB_PUSH) {
+		const res = await tryCatch(c.env.WEB_PUSH.fetch('http://internal/vapid-key'));
+		if (res.ok && res.data.ok) {
+			const json = await tryCatch(
+				res.data.json() as Promise<{ publicKey: string | null; enabled: boolean }>,
+			);
+			if (json.ok) {
+				return c.json(json.data);
+			}
+		}
+	}
+
+	return c.json({ publicKey: null, enabled: false });
+});
+
+clientRoutes.post('/push/subscribe', async (c) => {
+	const user = c.get('user');
+	const bodyRes = await tryCatch(
+		c.req.json<{
+			endpoint?: string;
+			keys?: { p256dh?: string; auth?: string };
+		}>(),
+	);
+	const body = bodyRes.ok ? bodyRes.data : {};
+	const endpoint = body.endpoint?.trim() || '';
+	const p256dh = body.keys?.p256dh?.trim() || '';
+	const auth = body.keys?.auth?.trim() || '';
+
+	if (
+		!endpoint ||
+		(!endpoint.startsWith('https://') &&
+			!endpoint.startsWith('http://localhost') &&
+			!endpoint.startsWith('http://127.0.0.1')) ||
+		!p256dh ||
+		!auth
+	) {
+		return c.json({ error: 'Abonnement Web Push invalide' }, 400);
+	}
+
+	const now = nowIso();
+	const userAgent = c.req.header('user-agent')?.slice(0, 255) || null;
+	const upsertRes = await tryCatch(
+		c.env.DB.prepare(
+			`INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(endpoint) DO UPDATE SET
+         user_id = excluded.user_id,
+         p256dh = excluded.p256dh,
+         auth = excluded.auth,
+         user_agent = excluded.user_agent,
+         updated_at = excluded.updated_at`,
+		)
+			.bind(crypto.randomUUID(), user.id, endpoint, p256dh, auth, userAgent, now, now)
+			.run(),
+	);
+
+	if (!upsertRes.ok) {
+		return c.json({ error: 'Impossible d’enregistrer les notifications push' }, 500);
+	}
+
+	return c.json({ ok: true });
+});
+
+clientRoutes.delete('/push/subscribe', async (c) => {
+	const user = c.get('user');
+	const bodyRes = await tryCatch(c.req.json<{ endpoint?: string }>());
+	const endpoint = bodyRes.ok ? bodyRes.data.endpoint?.trim() : '';
+
+	if (endpoint) {
+		await tryCatch(
+			c.env.DB.prepare('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?')
+				.bind(endpoint, user.id)
+				.run(),
+		);
+	}
+
+	return c.json({ ok: true });
+});
+
+clientRoutes.get('/realtime/ws', async (c) => {
+	const user = c.get('user');
+	if (c.req.header('Upgrade')?.toLowerCase() !== 'websocket') {
+		return c.json({ error: 'Upgrade WebSocket requis' }, 426);
+	}
+	if (!c.env.WEB_PUSH) {
+		return c.json({ error: 'Service temps réel indisponible' }, 503);
+	}
+
+	const wsReq = new Request(
+		`http://internal/ws?userId=${encodeURIComponent(user.id)}`,
+		c.req.raw,
+	);
+	return c.env.WEB_PUSH.fetch(wsReq);
 });
 
 clientRoutes.get('/wishlists', async (c) => {

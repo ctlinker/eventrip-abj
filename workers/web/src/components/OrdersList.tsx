@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { ShoppingBag, ArrowRight } from 'lucide-preact';
 import { apiFetch, formatDate, formatXof } from '../lib/api';
+import { subscribeRealtime } from '../lib/realtime';
 
 interface OrderSummary {
 	id: string;
@@ -30,10 +31,23 @@ export default function OrdersList() {
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
-		apiFetch<{ orders: OrderSummary[] }>('/api/orders')
-			.then((res) => setOrders(res.orders))
-			.catch((err) => setError(err.message))
-			.finally(() => setLoading(false));
+		const fetchOrders = () =>
+			apiFetch<{ orders: OrderSummary[] }>('/api/orders')
+				.then((res) => setOrders(res.orders))
+				.catch((err) => setError(err.message))
+				.finally(() => setLoading(false));
+
+		fetchOrders();
+
+		return subscribeRealtime((ev) => {
+			if (
+				ev.type === 'payment_confirmed' ||
+				ev.type === 'payment_rejected' ||
+				ev.type === 'order_expired'
+			) {
+				fetchOrders();
+			}
+		});
 	}, []);
 
 	if (loading) return <div class="h-48 rounded-2xl bg-slate-50 border border-slate-200 animate-pulse" />;

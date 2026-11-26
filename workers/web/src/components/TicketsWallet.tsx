@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import QRCode from 'qrcode';
 import { Ticket, Calendar, MapPin, Bus, Lock, Download, FileText, QrCode, X } from 'lucide-preact';
 import { apiFetch, formatDate, formatXof } from '../lib/api';
+import { subscribeRealtime } from '../lib/realtime';
 
 interface WalletTicket {
 	id: string;
@@ -253,10 +254,24 @@ export default function TicketsWallet() {
 	const [error, setError] = useState<string | null>(null);
 
 	useEffect(() => {
-		apiFetch<{ tickets: WalletTicket[] }>('/api/tickets')
-			.then((res) => setTickets(res.tickets))
-			.catch((err) => setError(err.message))
-			.finally(() => setLoading(false));
+		const fetchTickets = () =>
+			apiFetch<{ tickets: WalletTicket[] }>('/api/tickets')
+				.then((res) => setTickets(res.tickets))
+				.catch((err) => setError(err.message))
+				.finally(() => setLoading(false));
+
+		fetchTickets();
+
+		return subscribeRealtime((ev) => {
+			if (
+				ev.type === 'payment_confirmed' ||
+				ev.type === 'payment_rejected' ||
+				ev.type === 'ticket_scanned' ||
+				ev.type === 'order_expired'
+			) {
+				fetchTickets();
+			}
+		});
 	}, []);
 
 	if (loading) return <div class="h-64 rounded-2xl bg-slate-50 border border-slate-200 animate-pulse" />;

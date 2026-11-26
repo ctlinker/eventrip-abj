@@ -3,6 +3,11 @@ import { getDB } from 'db';
 import { isUniqueConstraintError, tryCatch } from 'utils';
 import { requireAdmin, requireAuth, requirePermission } from '../middleware/auth';
 import { createNotification, nowIso, parsePosterKeys, slugify, writeAuditLog } from '../lib/utils';
+import {
+	buildNotificationStatements,
+	buildRealtimeSignalStatement,
+	scheduleOutboxFlush,
+} from '../services/notifications';
 import { releaseOrderReservations } from '../services/orders';
 import type { AppEnv } from '../types';
 
@@ -750,6 +755,17 @@ adminRoutes.post('/payments/:id/confirm', requirePermission('payments:verify'), 
 		return c.json({ error: 'Paiement déjà traité' }, 409);
 	}
 
+	const confirmNotif = buildNotificationStatements(c.env.DB, {
+		userId: payment.user_id,
+		type: 'payment_confirmed',
+		title: 'Paiement confirmé !',
+		body: 'Vos tickets et QR codes sont désormais valides et disponibles dans votre espace.',
+		link: `/orders/${payment.order_id}`,
+		orderId: payment.order_id,
+		push: true,
+		now,
+	});
+
 	await c.env.DB.batch([
 		c.env.DB.prepare("UPDATE orders SET status = 'confirmed', updated_at = ? WHERE id = ?").bind(
 			now,
@@ -758,6 +774,7 @@ adminRoutes.post('/payments/:id/confirm', requirePermission('payments:verify'), 
 		c.env.DB.prepare(
 			"UPDATE tickets SET status = 'valid', updated_at = ? WHERE order_id = ? AND status = 'pending'",
 		).bind(now, payment.order_id),
+		...confirmNotif.statements,
 	]);
 
 	await writeAuditLog(db, {
@@ -770,13 +787,7 @@ adminRoutes.post('/payments/:id/confirm', requirePermission('payments:verify'), 
 		metadata: { order_id: payment.order_id },
 	});
 
-	await createNotification(db, {
-		userId: payment.user_id,
-		type: 'payment_confirmed',
-		title: 'Paiement confirmé !',
-		body: 'Vos tickets et QR codes sont désormais valides et disponibles dans votre espace.',
-		link: `/orders/${payment.order_id}`,
-	});
+	scheduleOutboxFlush(c.env, c.executionCtx, [confirmNotif.outboxId]);
 
 	return c.json({ ok: true, status: 'confirmed', wave_transaction_ref: waveRef });
 });
@@ -818,6 +829,17 @@ adminRoutes.post('/payments/:id/reject', requirePermission('payments:verify'), a
 		return c.json({ error: 'Paiement déjà traité' }, 409);
 	}
 
+	const rejectNotif = buildNotificationStatements(c.env.DB, {
+		userId: payment.user_id,
+		type: 'payment_rejected',
+		title: 'Paiement rejeté',
+		body: `Motif : ${reason}`,
+		link: `/orders/${payment.order_id}`,
+		orderId: payment.order_id,
+		push: true,
+		now,
+	});
+
 	await c.env.DB.batch([
 		c.env.DB.prepare("UPDATE orders SET status = 'rejected', updated_at = ? WHERE id = ?").bind(
 			now,
@@ -826,6 +848,7 @@ adminRoutes.post('/payments/:id/reject', requirePermission('payments:verify'), a
 		c.env.DB.prepare(
 			"UPDATE tickets SET status = 'cancelled', updated_at = ? WHERE order_id = ? AND status = 'pending'",
 		).bind(now, payment.order_id),
+		...rejectNotif.statements,
 	]);
 
 	await releaseOrderReservations(c.env.DB, payment.order_id);
@@ -840,13 +863,7 @@ adminRoutes.post('/payments/:id/reject', requirePermission('payments:verify'), a
 		metadata: { order_id: payment.order_id },
 	});
 
-	await createNotification(db, {
-		userId: payment.user_id,
-		type: 'payment_rejected',
-		title: 'Paiement rejeté',
-		body: `Motif : ${reason}`,
-		link: `/orders/${payment.order_id}`,
-	});
+	scheduleOutboxFlush(c.env, c.executionCtx, [rejectNotif.outboxId]);
 
 	return c.json({ ok: true, status: 'rejected' });
 });
@@ -929,6 +946,18 @@ adminRoutes.post('/tickets/scan', async (c) => {
 				: direction === 'outbound'
 					? 'Aller validé (1/2)'
 					: 'Retour validé (2/2)';
+
+		const scanSignal = buildRealtimeSignalStatement(c.env.DB, {
+			userId: updated.user_id,
+			type: 'ticket_scanned',
+			title: message,
+			body: `Billet ${updated.code}`,
+			link: '/tickets',
+			ticketId: updated.id,
+			now,
+		});
+		await tryCatch(scanSignal.statement.run());
+		scheduleOutboxFlush(c.env, c.executionCtx, [scanSignal.outboxId]);
 
 		return c.json({
 			result: 'valid',

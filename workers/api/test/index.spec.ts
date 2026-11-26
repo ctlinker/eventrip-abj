@@ -6,7 +6,8 @@ import migration003 from '../../../packages/db/migrations/003_communes_roundtrip
 import migration004 from '../../../packages/db/migrations/004_event_single_price.sql?raw';
 import migration005 from '../../../packages/db/migrations/005_event_categories.sql?raw';
 import migration006 from '../../../packages/db/migrations/006_wishlists.sql?raw';
-import { expirePendingOrders } from '../src/services/orders';
+import migration007 from '../../../packages/db/migrations/007_notifications_realtime_push.sql?raw';
+import { expirePendingOrders, sendExpiringOrderReminders } from '../src/services/orders';
 import { maybeBootstrapSuperAdmin } from '../src/lib/bootstrap';
 
 async function applySql(sql: string) {
@@ -58,6 +59,7 @@ describe('Eventrip API Core', () => {
 		await applySql(migration004);
 		await applySql(migration005);
 		await applySql(migration006);
+		await applySql(migration007);
 
 		const client = await signUpAndGetCookie('Kouame Client', 'client@eventrip.ci', '+2250700000001');
 		clientCookie = client.cookie;
@@ -499,6 +501,87 @@ describe('Eventrip API Core', () => {
 			headers: { Cookie: adminVerifierCookie },
 		});
 		expect(okDelete.status).toBe(200);
+
+		// 13. Web Push subscriptions, Transactional Outbox, admin verifier fan-out & 30-min reminder
+		const vapidRes = await SELF.fetch('https://example.com/api/push/vapid-key', {
+			headers: { Cookie: clientCookie },
+		});
+		expect(vapidRes.status).toBe(200);
+		const vapidJson = (await vapidRes.json()) as { publicKey: string | null; enabled: boolean };
+		expect(vapidJson.publicKey).toBe('test-vapid-public-key');
+
+		const subEndpoint = 'https://fcm.googleapis.com/fcm/send/test-sub-token-123';
+		const subRes = await SELF.fetch('https://example.com/api/push/subscribe', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: clientCookie },
+			body: JSON.stringify({
+				endpoint: subEndpoint,
+				keys: { p256dh: 'test-p256dh-key', auth: 'test-auth-secret' },
+			}),
+		});
+		expect(subRes.status).toBe(200);
+
+		// Vérifier que les dépôts de justificatifs précédents ont généré admin_proof_submitted pour adminVerifier (et PAS adminNoPerm)
+		const verifierNotifsRes = await SELF.fetch('https://example.com/api/notifications', {
+			headers: { Cookie: adminVerifierCookie },
+		});
+		expect(verifierNotifsRes.status).toBe(200);
+		const verifierNotifs = (await verifierNotifsRes.json()) as {
+			notifications: Array<{ type: string }>;
+		};
+		expect(verifierNotifs.notifications.some((n) => n.type === 'admin_proof_submitted')).toBe(true);
+
+		const noPermNotifsRes = await SELF.fetch('https://example.com/api/notifications', {
+			headers: { Cookie: adminNoPermCookie },
+		});
+		const noPermNotifs = (await noPermNotifsRes.json()) as {
+			notifications: Array<{ type: string }>;
+		};
+		expect(noPermNotifs.notifications.some((n) => n.type === 'admin_proof_submitted')).toBe(false);
+
+		// Tester le rappel T-30 min (sendExpiringOrderReminders) idempotent + notification d'expiration
+		const reminderOrderRes = await SELF.fetch('https://example.com/api/orders', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: clientCookie },
+			body: JSON.stringify({
+				items: [{ type: 'convoy', id: convoyId, quantity: 1 }],
+			}),
+		});
+		expect(reminderOrderRes.status).toBe(201);
+		const reminderOrder = (await reminderOrderRes.json()) as { order: { id: string } };
+
+		const twentyMinFromNow = new Date(Date.now() + 20 * 60_000).toISOString();
+		await env.DB.prepare('UPDATE orders SET expires_at = ? WHERE id = ?')
+			.bind(twentyMinFromNow, reminderOrder.order.id)
+			.run();
+
+		const remindedFirst = await sendExpiringOrderReminders(env);
+		expect(remindedFirst).toBe(1);
+		const remindedSecond = await sendExpiringOrderReminders(env);
+		expect(remindedSecond).toBe(0);
+
+		const clientNotifsRes = await SELF.fetch('https://example.com/api/notifications', {
+			headers: { Cookie: clientCookie },
+		});
+		const clientNotifs = (await clientNotifsRes.json()) as {
+			notifications: Array<{ type: string; is_read: number }>;
+		};
+		expect(clientNotifs.notifications.some((n) => n.type === 'order_expiring_soon')).toBe(true);
+		expect(clientNotifs.notifications.some((n) => n.type === 'order_expired')).toBe(true);
+
+		const readAllRes = await SELF.fetch('https://example.com/api/notifications/read-all', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Cookie: clientCookie },
+			body: '{}',
+		});
+		expect(readAllRes.status).toBe(200);
+
+		const unsubRes = await SELF.fetch('https://example.com/api/push/subscribe', {
+			method: 'DELETE',
+			headers: { 'Content-Type': 'application/json', Cookie: clientCookie },
+			body: JSON.stringify({ endpoint: subEndpoint }),
+		});
+		expect(unsubRes.status).toBe(200);
 
 		expect(clientUserId).toBeTruthy();
 	});

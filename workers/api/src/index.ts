@@ -8,7 +8,8 @@ import { publicRoutes } from './routes/public';
 import { clientRoutes } from './routes/client';
 import { adminRoutes } from './routes/admin';
 import { superAdminRoutes } from './routes/super-admin';
-import { expirePendingOrders } from './services/orders';
+import { flushNotificationOutbox } from './services/notifications';
+import { expirePendingOrders, sendExpiringOrderReminders } from './services/orders';
 import type { AppEnv } from './types';
 
 const app = new Hono<AppEnv>();
@@ -70,6 +71,12 @@ app.route('/api/super-admin', superAdminRoutes);
 export default {
 	fetch: app.fetch,
 	async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-		ctx.waitUntil(expirePendingOrders(env.DB));
+		ctx.waitUntil(
+			(async () => {
+				await sendExpiringOrderReminders(env);
+				await expirePendingOrders(env.DB, env);
+				await flushNotificationOutbox(env);
+			})(),
+		);
 	},
 } satisfies ExportedHandler<Env>;

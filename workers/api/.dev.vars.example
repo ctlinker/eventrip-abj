@@ -1,0 +1,5 @@
+BOOTSTRAP_SUPER_ADMIN_EMAIL=admin@eventrip.ci
+# Générer avec : bunx --cwd workers/api web-push generate-vapid-keys
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+VAPID_SUBJECT=mailto:contact@eventrip.ci
