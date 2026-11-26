@@ -11,6 +11,9 @@
 	"observability": {
 		"enabled": true
 	},
+	"vars": {
+		"CONTACT_NUM": "+2250545990099"
+	},
 	"services": [
 		{
 			"binding": "API",

@@ -15,7 +15,9 @@ const currentPath = Astro.url.pathname;
 let initialUser: ApiUser | null = null;
 let ssrResolved = false;
 
-const api = (env as Partial<Env>)?.API;
+const cfEnv = env as Partial<Env> & { CONTACT_NUM?: string };
+const contactNum = cfEnv?.CONTACT_NUM || '+2250545990099';
+const api = cfEnv?.API;
 if (api) {
 	const cookie = Astro.request.headers.get('cookie');
 	if (!cookie) {
@@ -56,7 +58,13 @@ if (api) {
 		<title>{title}</title>
 	</head>
 	<body class="min-h-screen bg-white text-navy-950 flex flex-col">
-		<Navbar initialUser={initialUser} ssrResolved={ssrResolved} currentPath={currentPath} client:load />
+		<Navbar
+			initialUser={initialUser}
+			ssrResolved={ssrResolved}
+			currentPath={currentPath}
+			contactNum={contactNum}
+			client:load
+		/>
 		<main class="flex-1">
 			<slot />
 		</main>
