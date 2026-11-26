@@ -864,22 +864,6 @@ clientRoutes.delete('/push/subscribe', async (c) => {
 	return c.json({ ok: true });
 });
 
-clientRoutes.get('/realtime/ws', async (c) => {
-	const user = c.get('user');
-	if (c.req.header('Upgrade')?.toLowerCase() !== 'websocket') {
-		return c.json({ error: 'Upgrade WebSocket requis' }, 426);
-	}
-	if (!c.env.WEB_PUSH) {
-		return c.json({ error: 'Service temps réel indisponible' }, 503);
-	}
-
-	const wsReq = new Request(
-		`http://internal/ws?userId=${encodeURIComponent(user.id)}`,
-		c.req.raw,
-	);
-	return c.env.WEB_PUSH.fetch(wsReq);
-});
-
 clientRoutes.get('/wishlists', async (c) => {
 	const user = c.get('user');
 	const db = getDB(c.env.DB);

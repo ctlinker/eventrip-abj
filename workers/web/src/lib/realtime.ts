@@ -19,6 +19,7 @@ const listeners = new Set<RealtimeListener>();
 const seenEventKeys = new Set<string>();
 let activeSocket: WebSocket | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let stableTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 let closedManually = false;
@@ -71,6 +72,10 @@ function clearTimers() {
 		clearInterval(heartbeatTimer);
 		heartbeatTimer = null;
 	}
+	if (stableTimer) {
+		clearTimeout(stableTimer);
+		stableTimer = null;
+	}
 	if (reconnectTimer) {
 		clearTimeout(reconnectTimer);
 		reconnectTimer = null;
@@ -95,7 +100,10 @@ function connectSocket() {
 	activeSocket = ws;
 
 	ws.onopen = () => {
-		reconnectAttempt = 0;
+		if (stableTimer) clearTimeout(stableTimer);
+		stableTimer = setTimeout(() => {
+			reconnectAttempt = 0;
+		}, 5_000);
 		if (heartbeatTimer) clearInterval(heartbeatTimer);
 		heartbeatTimer = setInterval(() => {
 			if (ws.readyState === WebSocket.OPEN) {
@@ -114,6 +122,10 @@ function connectSocket() {
 
 	ws.onclose = () => {
 		if (activeSocket === ws) activeSocket = null;
+		if (stableTimer) {
+			clearTimeout(stableTimer);
+			stableTimer = null;
+		}
 		if (heartbeatTimer) {
 			clearInterval(heartbeatTimer);
 			heartbeatTimer = null;

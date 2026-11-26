@@ -14,15 +14,36 @@ import type { AppEnv } from './types';
 
 const app = new Hono<AppEnv>();
 
-app.use(
-	'/api/*',
-	cors({
-		origin: (origin) => origin || '*',
-		allowHeaders: ['Content-Type', 'Authorization'],
-		allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-		credentials: true,
-	}),
-);
+// Ne jamais envelopper une réponse 101 WebSocket avec le middleware CORS (Hono recréerait Response sans .webSocket)
+app.get('/api/realtime/ws', requireAuth, async (c) => {
+	const user = c.get('user');
+	if (c.req.header('Upgrade')?.toLowerCase() !== 'websocket') {
+		return c.json({ error: 'Upgrade WebSocket requis' }, 426);
+	}
+	if (!c.env.WEB_PUSH) {
+		return c.json({ error: 'Service temps réel indisponible' }, 503);
+	}
+
+	const wsReq = new Request(
+		`http://internal/ws?userId=${encodeURIComponent(user.id)}`,
+		c.req.raw,
+	);
+	return c.env.WEB_PUSH.fetch(wsReq);
+});
+
+const corsMiddleware = cors({
+	origin: (origin) => origin || '*',
+	allowHeaders: ['Content-Type', 'Authorization'],
+	allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+	credentials: true,
+});
+
+app.use('/api/*', async (c, next) => {
+	if (c.req.header('Upgrade')?.toLowerCase() === 'websocket') {
+		return next();
+	}
+	return corsMiddleware(c, next);
+});
 
 app.get('/api/health', (c) => {
 	return c.json({ ok: true, service: 'eventrip-api' });
