@@ -143,7 +143,7 @@ export default function AuthForm() {
 								value={name}
 								onInput={(e) => setName((e.target as HTMLInputElement).value)}
 								placeholder="Ex: Kouamé Aya"
-								class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-brand-600 focus:outline-none"
 							/>
 						</div>
 						<div>
@@ -160,7 +160,7 @@ export default function AuthForm() {
 								value={phone}
 								onInput={(e) => setPhone((e.target as HTMLInputElement).value)}
 								placeholder="+225 07 00 00 00 00"
-								class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-brand-600 focus:outline-none"
 							/>
 						</div>
 						<div>
@@ -173,7 +173,7 @@ export default function AuthForm() {
 								name="commune"
 								value={commune}
 								onChange={(e) => setCommune((e.target as HTMLSelectElement).value)}
-								class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:border-brand-600 focus:outline-none"
 							>
 								<option value="">Sélectionner une commune...</option>
 								{ABIDJAN_COMMUNES.map((c) => (
@@ -200,7 +200,7 @@ export default function AuthForm() {
 						value={email}
 						onInput={(e) => setEmail((e.target as HTMLInputElement).value)}
 						placeholder="vous@exemple.ci"
-						class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
+						class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-brand-600 focus:outline-none"
 					/>
 				</div>
 
@@ -219,7 +219,7 @@ export default function AuthForm() {
 						value={password}
 						onInput={(e) => setPassword((e.target as HTMLInputElement).value)}
 						placeholder="••••••••"
-						class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
+						class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm focus:border-brand-600 focus:outline-none"
 					/>
 				</div>
 
@@ -232,7 +232,7 @@ export default function AuthForm() {
 				<button
 					type="submit"
 					disabled={loading}
-					class="w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
+					class="w-full rounded-xl bg-brand-600 py-3 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50 transition-colors cursor-pointer shadow-xs"
 				>
 					{loading
 						? 'Veuillez patienter...'

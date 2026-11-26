@@ -114,11 +114,11 @@ export default function EventsCatalog() {
 			<section class="relative overflow-hidden bg-white">
 				{/* Sphères hachurées décoratives */}
 				<div
-					class="pointer-events-none absolute -top-24 -right-20 h-72 w-72 rounded-full bg-hatched-green opacity-80"
+					class="pointer-events-none absolute -top-24 -right-20 h-72 w-72 rounded-full bg-hatched-gold opacity-80"
 					aria-hidden="true"
 				/>
 				<div
-					class="pointer-events-none absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-hatched-green opacity-70"
+					class="pointer-events-none absolute -bottom-20 -left-20 h-56 w-56 rounded-full bg-hatched-gold opacity-70"
 					aria-hidden="true"
 				/>
 				<div
@@ -131,7 +131,7 @@ export default function EventsCatalog() {
 						<div class="min-w-0 lg:col-span-7 space-y-5">
 							<h1 class="text-3xl sm:text-5xl font-black tracking-tight text-slate-950 leading-[1.08]">
 								Votre billet pour la{' '}
-								<span class="text-emerald-600">prochaine grande sortie</span>.
+								<span class="text-brand-600">prochaine grande sortie</span>.
 							</h1>
 							<p class="max-w-xl text-base sm:text-lg text-slate-600">
 								Réservez l’accès à l’événement et votre convoi aller-retour depuis votre commune, au même endroit.
@@ -159,7 +159,7 @@ export default function EventsCatalog() {
 								<div class="hidden sm:block h-6 w-px bg-slate-200 shrink-0" aria-hidden="true" />
 
 								<div class="flex items-center gap-1.5 px-2.5 py-2 sm:w-36 shrink-0">
-									<MapPin class="h-4 w-4 text-emerald-600 shrink-0" />
+									<MapPin class="h-4 w-4 text-brand-600 shrink-0" />
 									<select
 										id="catalog-commune"
 										name="commune"
@@ -202,7 +202,7 @@ export default function EventsCatalog() {
 
 								<button
 									type="submit"
-									class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 transition-colors cursor-pointer shrink-0"
+									class="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors cursor-pointer shrink-0"
 								>
 									Explorer
 								</button>
@@ -256,7 +256,7 @@ export default function EventsCatalog() {
 									onClick={() => setSelectedCategoryId(cat.id)}
 									class={`rounded-full px-3.5 py-1.5 text-xs font-bold border transition-colors cursor-pointer ${
 										selectedCategoryId === cat.id
-											? 'bg-emerald-600 text-white border-emerald-600'
+											? 'bg-brand-600 text-white border-brand-600'
 											: 'bg-white text-slate-600 border-slate-200 hover:border-slate-300 hover:text-slate-900'
 									}`}
 								>
@@ -282,7 +282,7 @@ export default function EventsCatalog() {
 					</div>
 				) : filteredEvents.length === 0 ? (
 					<div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-12 text-center">
-						<Calendar class="mx-auto h-10 w-10 text-emerald-600 mb-3" />
+						<Calendar class="mx-auto h-10 w-10 text-brand-600 mb-3" />
 						<h3 class="text-lg font-bold text-slate-900">Aucun événement trouvé</h3>
 						<p class="mt-1 text-sm text-slate-500">
 							Essayez de modifier votre recherche ou de réinitialiser les filtres.
@@ -335,12 +335,12 @@ export default function EventsCatalog() {
 											key={`${copyKey}-${cv.id}`}
 											class={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold border ${
 												isMatch
-													? 'bg-emerald-600 text-white border-emerald-600'
+													? 'bg-brand-600 text-white border-brand-600'
 													: 'bg-white text-slate-700 border-slate-200/90'
 											}`}
 										>
 											<MapPin
-												class={`h-3 w-3 ${isMatch ? 'text-white' : 'text-emerald-600'}`}
+												class={`h-3 w-3 ${isMatch ? 'text-white' : 'text-brand-600'}`}
 											/>
 											<span>
 												{label} • {cv.remaining}/{cv.capacity} dispo
@@ -409,7 +409,7 @@ export default function EventsCatalog() {
 											)}
 
 											<div class="flex flex-1 flex-col p-5">
-												<h3 class="text-lg font-bold text-slate-950 group-hover:text-emerald-700 transition-colors leading-snug">
+												<h3 class="text-lg font-bold text-slate-950 group-hover:text-brand-700 transition-colors leading-snug">
 													{event.title}
 												</h3>
 												<p class="mt-1.5 text-xs font-medium text-slate-500 truncate">
@@ -428,7 +428,7 @@ export default function EventsCatalog() {
 															</p>
 														)}
 													</div>
-													<span class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs group-hover:bg-emerald-700 transition-colors">
+													<span class="inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-xs group-hover:bg-brand-700 transition-colors">
 														Réserver
 													</span>
 												</div>

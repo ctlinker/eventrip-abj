@@ -2,14 +2,29 @@
 
 @theme {
 	--font-sans: "Satoshi-Variable", "Satoshi-Regular", ui-sans-serif, system-ui, -apple-system, sans-serif;
-	--color-brand-50: #ecfdf5;
-	--color-brand-100: #d1fae5;
-	--color-brand-200: #a7f3d0;
-	--color-brand-500: #10b981;
-	--color-brand-600: #059669;
-	--color-brand-700: #047857;
-	--color-brand-800: #065f46;
-	--color-brand-900: #064e3b;
+
+	/* Palette Or Métallique / Champagne (assets/3.jpg & assets/4.jpg) */
+	--color-brand-50: #fdf9ef;
+	--color-brand-100: #f8edd1;
+	--color-brand-200: #efd79e;
+	--color-brand-300: #e3c183;
+	--color-brand-400: #cfa35b;
+	--color-brand-500: #b8893c;
+	--color-brand-600: #9a6f28;
+	--color-brand-700: #7d571d;
+	--color-brand-800: #634416;
+	--color-brand-900: #4a3210;
+	--color-brand-950: #2c1d07;
+
+	/* Palette Bleu Nuit / Obsidienne Abidjan (assets/4.jpg & assets/3.jpg) */
+	--color-navy-50: #f3f6f9;
+	--color-navy-100: #e3eaf1;
+	--color-navy-200: #c5d3e2;
+	--color-navy-600: #3a4f66;
+	--color-navy-700: #2b3a4d;
+	--color-navy-800: #1e3046;
+	--color-navy-900: #142234;
+	--color-navy-950: #0e1827;
 }
 
 @layer base {
@@ -17,17 +32,18 @@
 	body {
 		font-family: var(--font-sans);
 		background-color: #ffffff;
-		color: #0f172a;
+		color: #0e1827;
 		-webkit-font-smoothing: antialiased;
 	}
 }
 
-/* Motifs bandes hachurées diagonales (inspiration Tailwind CSS) */
+/* Motifs bandes hachurées diagonales (Or & Bleu Nuit) */
+.bg-hatched-gold,
 .bg-hatched-green {
 	background-image: repeating-linear-gradient(
 		-45deg,
-		rgba(16, 185, 129, 0.14) 0px,
-		rgba(16, 185, 129, 0.14) 1.5px,
+		rgba(184, 137, 60, 0.16) 0px,
+		rgba(184, 137, 60, 0.16) 1.5px,
 		transparent 1.5px,
 		transparent 11px
 	);
@@ -36,8 +52,8 @@
 .bg-hatched-slate {
 	background-image: repeating-linear-gradient(
 		-45deg,
-		rgba(15, 23, 42, 0.07) 0px,
-		rgba(15, 23, 42, 0.07) 1px,
+		rgba(14, 24, 39, 0.08) 0px,
+		rgba(14, 24, 39, 0.08) 1px,
 		transparent 1px,
 		transparent 9px
 	);

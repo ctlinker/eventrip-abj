@@ -58,7 +58,7 @@ export default function AdminDashboard() {
 					key={card.label}
 					class={`rounded-2xl border p-5 shadow-xs ${
 						card.highlight
-							? 'border-emerald-300 bg-emerald-50/50'
+							? 'border-brand-300 bg-brand-50/50'
 							: card.warn
 								? 'border-amber-300 bg-amber-50/50'
 								: 'border-slate-200 bg-white'

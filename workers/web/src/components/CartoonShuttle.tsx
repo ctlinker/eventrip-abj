@@ -7,10 +7,10 @@ export default function CartoonShuttle() {
 				xmlns="http://www.w3.org/2000/svg"
 				class="w-full h-auto overflow-visible"
 			>
-				{/* Grille subtile sous la colline (style 1.jpg) */}
+				{/* Grille subtile sous la colline */}
 				<defs>
 					<pattern id="hero-grid" width="22" height="22" patternUnits="userSpaceOnUse">
-						<path d="M 22 0 L 0 0 0 22" fill="none" stroke="#10b981" stroke-opacity="0.14" stroke-width="1" />
+						<path d="M 22 0 L 0 0 0 22" fill="none" stroke="#b8893c" stroke-opacity="0.18" stroke-width="1" />
 					</pattern>
 					<clipPath id="hill-clip">
 						<path d="M 10 255 Q 235 168 455 238 L 455 268 L 10 268 Z" />
@@ -23,17 +23,17 @@ export default function CartoonShuttle() {
 				{/* Remplissage grille sous la courbe */}
 				<rect x="0" y="160" width="460" height="110" fill="url(#hero-grid)" clipPath="url(#hill-clip)" />
 
-				{/* Courbe de route verte principale */}
+				{/* Courbe de route dorée principale */}
 				<path
 					d="M 12 254 Q 235 168 452 236"
-					stroke="#10b981"
+					stroke="#b8893c"
 					stroke-width="5.5"
 					stroke-linecap="round"
 				/>
 				{/* Tirets de mouvement doux sur la route */}
 				<path
 					d="M 30 247 Q 235 173 440 232"
-					stroke="#a7f3d0"
+					stroke="#e3c183"
 					stroke-width="2"
 					stroke-dasharray="10 14"
 					stroke-linecap="round"
@@ -62,25 +62,25 @@ export default function CartoonShuttle() {
 
 					{/* Graffiti & Stickers événementiels statiques (clippés à la carrosserie) */}
 					<g clipPath="url(#bus-body-clip)">
-						{/* Bande toit émeraude */}
-						<rect x="125" y="56" width="255" height="11" fill="#10b981" />
+						{/* Bande toit dorée */}
+						<rect x="125" y="56" width="255" height="11" fill="#b8893c" />
 
 						{/* Taches artistiques graffiti maîtrisées */}
-						<circle cx="178" cy="146" r="26" fill="#22d3ee" fill-opacity="0.85" />
-						<circle cx="236" cy="138" r="34" fill="#10b981" fill-opacity="0.25" />
-						<circle cx="292" cy="148" r="28" fill="#facc15" fill-opacity="0.9" />
-						<circle cx="344" cy="136" r="26" fill="#f43f5e" fill-opacity="0.85" />
-						<circle cx="358" cy="158" r="22" fill="#6366f1" fill-opacity="0.85" />
+						<circle cx="178" cy="146" r="26" fill="#2b3a4d" fill-opacity="0.85" />
+						<circle cx="236" cy="138" r="34" fill="#e3c183" fill-opacity="0.4" />
+						<circle cx="292" cy="148" r="28" fill="#cfa35b" fill-opacity="0.9" />
+						<circle cx="344" cy="136" r="26" fill="#0e1827" fill-opacity="0.85" />
+						<circle cx="358" cy="158" r="22" fill="#9a6f28" fill-opacity="0.85" />
 						<path
 							d="M 118 148 Q 140 126 160 152 T 195 156"
-							stroke="#ec4899"
+							stroke="#e3c183"
 							stroke-width="10"
 							stroke-linecap="round"
 						/>
 
 						{/* Points street-art */}
-						<circle cx="164" cy="126" r="3" fill="#0f172a" />
-						<circle cx="322" cy="124" r="3.5" fill="#10b981" />
+						<circle cx="164" cy="126" r="3" fill="#0e1827" />
+						<circle cx="322" cy="124" r="3.5" fill="#b8893c" />
 						<circle cx="332" cy="152" r="2.5" fill="#ffffff" />
 
 						{/* Tag "GO!" à l'avant */}
@@ -88,7 +88,7 @@ export default function CartoonShuttle() {
 							x="120"
 							y="142"
 							transform="rotate(-10 120 142)"
-							fill="#059669"
+							fill="#9a6f28"
 							font-size="18"
 							font-weight="900"
 							font-family="Satoshi-Variable, sans-serif"
@@ -96,7 +96,7 @@ export default function CartoonShuttle() {
 							GO!
 						</text>
 
-						{/* Sticker central "FEST" style graffiti (1.jpg) */}
+						{/* Sticker central "FEST" */}
 						<g transform="rotate(-5 248 146)">
 							<rect
 								x="196"
@@ -104,17 +104,17 @@ export default function CartoonShuttle() {
 								width="104"
 								height="40"
 								rx="9"
-								fill="#ffffff"
-								stroke="#0f172a"
-								stroke-width="3.5"
+								fill="#0e1827"
+								stroke="#e3c183"
+								stroke-width="3"
 							/>
 							<text
 								x="248"
 								y="148"
 								text-anchor="middle"
-								fill="#ec4899"
-								stroke="#0f172a"
-								stroke-width="1.5"
+								fill="#e3c183"
+								stroke="#0e1827"
+								stroke-width="0.5"
 								font-size="29"
 								font-weight="900"
 								letter-spacing="1"
@@ -131,8 +131,8 @@ export default function CartoonShuttle() {
 							width="40"
 							height="18"
 							rx="5"
-							fill="#10b981"
-							stroke="#0f172a"
+							fill="#b8893c"
+							stroke="#0e1827"
 							stroke-width="2.5"
 						/>
 						<text

@@ -44,29 +44,39 @@ if (api) {
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<meta name="theme-color" content="#059669" />
-		<meta name="apple-mobile-web-app-capable" content="yes" />
-		<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+		<meta name="theme-color" content="#0e1827" />
+		<meta name="mobile-web-app-capable" content="yes" />
+		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 		<meta name="apple-mobile-web-app-title" content="EVENTRIP" />
 		<link rel="manifest" href="/manifest.webmanifest" />
 		<link rel="apple-touch-icon" href="/icon-192.png" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" type="image/png" href="/logo.png" />
+		<link rel="icon" href="/favicon.ico" />
 		<link rel="stylesheet" href="/satoshi_fonts/WEB/css/satoshi.css" />
 		<title>{title}</title>
 	</head>
-	<body class="min-h-screen bg-white text-slate-900 flex flex-col">
+	<body class="min-h-screen bg-white text-navy-950 flex flex-col">
 		<Navbar initialUser={initialUser} ssrResolved={ssrResolved} currentPath={currentPath} client:load />
 		<main class="flex-1">
 			<slot />
 		</main>
-		<div class="mt-20 h-3 w-full border-y border-slate-200/70 bg-hatched-slate" aria-hidden="true"></div>
-		<footer class="bg-white py-8">
-			<div class="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
-				<p class="font-bold text-slate-900 tracking-tight">
-					EVENTRIP<span class="text-emerald-500">.</span>{' '}
-					<span class="font-normal text-slate-500">· Événements &amp; Convois en Côte d'Ivoire</span>
-				</p>
-				<p>Paiements sécurisés Wave · Billets Aller-Retour vérifiés</p>
+		<div class="mt-20 h-3 w-full border-y border-brand-200/70 bg-hatched-gold" aria-hidden="true"></div>
+		<footer class="bg-navy-950 py-8 text-slate-300">
+			<div class="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
+				<div class="flex items-center gap-3">
+					<img
+						src="/logo.png"
+						alt="ABJ-TRIPEVENT"
+						width="36"
+						height="36"
+						class="h-9 w-9 rounded-full object-contain shrink-0"
+					/>
+					<p class="font-bold text-white tracking-tight">
+						EVENTRIP<span class="text-brand-300">.</span>{' '}
+						<span class="font-normal text-slate-400">· Événements &amp; Convois en Côte d'Ivoire</span>
+					</p>
+				</div>
+				<p class="text-slate-400">Paiements sécurisés Wave · Billets Aller-Retour vérifiés</p>
 			</div>
 		</footer>
 	</body>

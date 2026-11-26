@@ -119,7 +119,7 @@ export default function AdminUsers() {
 										onChange={(e) =>
 											updateUser(u.id, { role: (e.target as HTMLSelectElement).value })
 										}
-										class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:border-emerald-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+										class="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-bold text-slate-800 focus:border-brand-600 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										<option value="client">Client</option>
 										<option value="admin">Admin</option>
@@ -136,7 +136,7 @@ export default function AdminUsers() {
 											}
 											class={`rounded-lg px-2.5 py-1.5 text-xs font-bold border cursor-pointer ${
 												canVerify
-													? 'bg-emerald-600 text-white border-emerald-600'
+													? 'bg-brand-600 text-white border-brand-600'
 													: 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
 											}`}
 										>
@@ -153,7 +153,7 @@ export default function AdminUsers() {
 											isSelf ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
 										} ${
 											u.is_active
-												? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+												? 'bg-brand-50 text-brand-700 border-brand-200'
 												: 'bg-red-50 text-red-700 border-red-200'
 										}`}
 									>

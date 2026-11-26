@@ -99,7 +99,7 @@ export default function AdminScanner() {
 			<div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
 				<div class="flex flex-wrap items-center justify-between gap-2">
 					<h2 class="flex items-center gap-2 text-lg font-extrabold text-slate-950">
-						<QrCode class="h-5 w-5 text-emerald-600" />
+						<QrCode class="h-5 w-5 text-brand-600" />
 						Contrôle d’accès QR
 					</h2>
 					<button
@@ -107,7 +107,7 @@ export default function AdminScanner() {
 						onClick={() => setCameraActive(!cameraActive)}
 						class="inline-flex shrink-0 whitespace-nowrap items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-800 hover:bg-slate-100 cursor-pointer"
 					>
-						<Camera class="h-4 w-4 text-emerald-600" />
+						<Camera class="h-4 w-4 text-brand-600" />
 						{cameraActive ? 'Arrêter caméra' : 'Activer caméra'}
 					</button>
 				</div>
@@ -118,7 +118,7 @@ export default function AdminScanner() {
 						onClick={() => setDirection('outbound')}
 						class={`rounded-lg py-2 text-xs font-bold transition-colors cursor-pointer ${
 							direction === 'outbound'
-								? 'bg-emerald-600 text-white shadow-xs'
+								? 'bg-brand-600 text-white shadow-xs'
 								: 'text-slate-600 hover:text-slate-900'
 						}`}
 					>
@@ -129,7 +129,7 @@ export default function AdminScanner() {
 						onClick={() => setDirection('return')}
 						class={`rounded-lg py-2 text-xs font-bold transition-colors cursor-pointer ${
 							direction === 'return'
-								? 'bg-emerald-600 text-white shadow-xs'
+								? 'bg-brand-600 text-white shadow-xs'
 								: 'text-slate-600 hover:text-slate-900'
 						}`}
 					>
@@ -160,11 +160,11 @@ export default function AdminScanner() {
 						placeholder="Coller ou scanner le token QR..."
 						value={token}
 						onInput={(e) => setToken((e.target as HTMLInputElement).value)}
-						class="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono focus:border-emerald-600 focus:outline-none"
+						class="flex-1 rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm font-mono focus:border-brand-600 focus:outline-none"
 					/>
 					<button
 						type="submit"
-						class="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 cursor-pointer shadow-xs"
+						class="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 cursor-pointer shadow-xs"
 					>
 						Vérifier
 					</button>

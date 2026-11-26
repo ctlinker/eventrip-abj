@@ -30,7 +30,7 @@ interface AdminPayment {
 
 const ORDER_STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 	pending_payment: { label: 'Attente preuve', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
-	under_review: { label: 'Preuve reçue', cls: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+	under_review: { label: 'Preuve reçue', cls: 'bg-brand-50 text-brand-800 border-brand-200' },
 	confirmed: { label: 'Confirmée', cls: 'bg-emerald-600 text-white border-emerald-600' },
 	rejected: { label: 'Rejetée', cls: 'bg-red-50 text-red-700 border-red-200' },
 	expired: { label: 'Expirée', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
@@ -161,9 +161,9 @@ export default function AdminPayments() {
 							else if (res.error) setError(res.error);
 							setPushBusy(false);
 						}}
-						class="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
+						class="inline-flex items-center gap-1.5 rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-1.5 text-xs font-bold text-brand-800 hover:bg-brand-100 cursor-pointer"
 					>
-						<BellRing class="h-3.5 w-3.5 text-emerald-600" />
+						<BellRing class="h-3.5 w-3.5 text-brand-600" />
 						{pushBusy ? 'Activation...' : 'Alertes Push nouveaux paiements'}
 					</button>
 				)}
@@ -213,7 +213,7 @@ export default function AdminPayments() {
 												: ''}
 										</p>
 										{p.wave_transaction_ref && p.status === 'pending' && (
-											<p class="mt-1.5 inline-block rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-bold text-emerald-800">
+											<p class="mt-1.5 inline-block rounded-lg bg-brand-50 border border-brand-200 px-2.5 py-1 text-xs font-bold text-brand-800">
 												ID Wave client :{' '}
 												<span class="font-mono">{p.wave_transaction_ref}</span>
 											</p>
@@ -228,7 +228,7 @@ export default function AdminPayments() {
 											<button
 												type="button"
 												onClick={() => setPreviewId(previewId === p.id ? null : p.id)}
-												class="mt-1 inline-flex items-center gap-1 text-xs font-bold text-emerald-700 hover:underline cursor-pointer"
+												class="mt-1 inline-flex items-center gap-1 text-xs font-bold text-brand-700 hover:underline cursor-pointer"
 											>
 												<Eye class="h-3.5 w-3.5" />
 												{previewId === p.id ? 'Masquer capture' : 'Voir capture'}
@@ -286,7 +286,7 @@ export default function AdminPayments() {
 								)}
 
 								{p.status === 'confirmed' && p.wave_transaction_ref && (
-									<p class="text-xs font-semibold text-emerald-700">
+									<p class="text-xs font-semibold text-brand-700">
 										Réf. Wave validée : <span class="font-mono">{p.wave_transaction_ref}</span>
 									</p>
 								)}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
-import { Bus, Ticket, ShoppingBag, LogIn, LogOut, ShieldCheck, Compass, Heart } from 'lucide-preact';
+import { Ticket, ShoppingBag, LogIn, LogOut, ShieldCheck, Compass, Heart } from 'lucide-preact';
 import { apiFetch, type ApiUser } from '../lib/api';
 import { disableWebPush, disconnectRealtime } from '../lib/realtime';
 import NotificationBell from './NotificationBell';
@@ -35,20 +35,24 @@ export default function Navbar({ initialUser = null, ssrResolved = false, curren
 		const active = exact ? currentPath === matchPrefix : currentPath.startsWith(matchPrefix);
 		return `inline-flex min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 items-center justify-center gap-1.5 rounded-lg p-2.5 sm:px-3 sm:py-1.5 text-sm font-semibold transition-colors ${
 			active
-				? 'text-emerald-600 bg-emerald-50/70'
-				: 'text-slate-600 hover:text-slate-950 hover:bg-slate-100/70'
+				? 'text-brand-700 bg-brand-50'
+				: 'text-slate-600 hover:text-navy-950 hover:bg-slate-100/70'
 		}`;
 	}
 
 	return (
 		<header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur">
-			<div class="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3.5 sm:px-6">
+			<div class="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
 				<a href="/" class="flex items-center gap-2.5 shrink-0 group">
-					<span class="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-xs group-hover:bg-emerald-700 transition-colors">
-						<Bus class="h-5 w-5" />
-					</span>
-					<span class="whitespace-nowrap text-lg sm:text-xl font-black tracking-tight text-slate-950">
-						EVENTRIP<span class="text-emerald-500">.</span>
+					<img
+						src="/logo.png"
+						alt="ABJ-TRIPEVENT"
+						width="40"
+						height="40"
+						class="h-10 w-10 rounded-full object-contain drop-shadow-xs transition-transform group-hover:scale-105"
+					/>
+					<span class="whitespace-nowrap text-lg sm:text-xl font-black tracking-tight text-navy-950">
+						EVENTRIP<span class="text-brand-500">.</span>
 					</span>
 				</a>
 
@@ -83,8 +87,8 @@ export default function Navbar({ initialUser = null, ssrResolved = false, curren
 							aria-label="Administration"
 							class={`inline-flex min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 items-center justify-center gap-1.5 rounded-lg p-2.5 sm:px-3 sm:py-1.5 text-sm font-semibold border transition-colors ${
 								currentPath.startsWith('/admin')
-									? 'bg-emerald-600 text-white border-emerald-600'
-									: 'bg-slate-50 text-slate-800 border-slate-200 hover:border-emerald-300 hover:text-emerald-700'
+									? 'bg-navy-950 text-brand-300 border-navy-950'
+									: 'bg-slate-50 text-navy-900 border-slate-200 hover:border-brand-300 hover:text-brand-700'
 							}`}
 						>
 							<ShieldCheck class="h-4 w-4" />
@@ -95,7 +99,7 @@ export default function Navbar({ initialUser = null, ssrResolved = false, curren
 					{loaded && !user && (
 						<a
 							href="/auth"
-							class="ml-1 inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 rounded-xl bg-emerald-600 px-3.5 sm:px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 transition-colors shadow-xs"
+							class="ml-1 inline-flex min-h-11 sm:min-h-0 items-center gap-1.5 rounded-xl bg-navy-950 px-3.5 sm:px-4 py-2 text-sm font-bold text-brand-200 hover:bg-navy-800 hover:text-white transition-colors shadow-xs"
 						>
 							<LogIn class="h-4 w-4 sm:hidden" />
 							<span>Connexion</span>

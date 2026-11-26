@@ -82,7 +82,7 @@ function QrModal({ ticket, onClose }: { ticket: WalletTicket; onClose: () => voi
 					<X class="h-4 w-4" />
 				</button>
 
-				<p class="font-mono text-xs font-bold text-emerald-600">{ticket.code}</p>
+				<p class="font-mono text-xs font-bold text-brand-600">{ticket.code}</p>
 				<h3 id={`qr-modal-title-${ticket.id}`} class="mt-1 text-lg font-extrabold text-slate-950">
 					{ticket.event_title}
 				</h3>
@@ -137,7 +137,7 @@ async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement |
 	ctx.fillStyle = '#ffffff';
 	ctx.fillRect(0, 0, width, height);
 
-	ctx.fillStyle = '#059669';
+	ctx.fillStyle = '#0e1827';
 	ctx.fillRect(0, 0, width, 150);
 
 	ctx.fillStyle = '#ffffff';
@@ -145,10 +145,10 @@ async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement |
 	ctx.fillText('EVENTRIP.', 48, 68);
 
 	ctx.font = '500 18px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
-	ctx.fillStyle = '#d1fae5';
+	ctx.fillStyle = '#e3c183';
 	ctx.fillText('REÇU OFFICIEL & BILLET ALLER-RETOUR', 48, 106);
 
-	ctx.fillStyle = '#ecfdf5';
+	ctx.fillStyle = '#fdf9ef';
 	ctx.fillRect(48, 178, width - 96, 64);
 	ctx.strokeStyle = '#a7f3d0';
 	ctx.lineWidth = 2;
@@ -182,7 +182,7 @@ async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement |
 		ctx.font = '500 16px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
 		ctx.fillText(label, 48, y);
 
-		ctx.fillStyle = label === 'Montant payé' ? '#059669' : '#0f172a';
+		ctx.fillStyle = label === 'Montant payé' ? '#9a6f28' : '#0e1827';
 		ctx.font =
 			label === 'Montant payé' || label === 'Événement'
 				? 'bold 20px "Satoshi-Variable", "Satoshi-Regular", sans-serif'
@@ -286,11 +286,11 @@ export default function TicketsWallet() {
 	if (tickets.length === 0) {
 		return (
 			<div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-10 text-center">
-				<Ticket class="mx-auto h-10 w-10 text-emerald-600 mb-3" />
+				<Ticket class="mx-auto h-10 w-10 text-brand-600 mb-3" />
 				<p class="font-bold text-slate-950">Vous n’avez encore aucun billet</p>
 				<a
 					href="/"
-					class="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+					class="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700"
 				>
 					Explorer les événements
 				</a>
@@ -317,7 +317,7 @@ export default function TicketsWallet() {
 								</div>
 
 								<h3 class="mt-3 text-lg font-extrabold text-slate-950">{t.event_title}</h3>
-								<p class="mt-1 text-sm font-bold text-emerald-700">
+								<p class="mt-1 text-sm font-bold text-brand-700">
 									{t.item_type === 'convoy_ticket' ? (
 										<span class="inline-flex items-center gap-1.5">
 											<Bus class="h-4 w-4" /> Départ {t.convoy_commune || t.convoy_name}
@@ -335,11 +335,11 @@ export default function TicketsWallet() {
 
 								<div class="mt-3 space-y-1 text-xs text-slate-500">
 									<p class="flex items-center gap-1.5">
-										<Calendar class="h-3.5 w-3.5 text-emerald-600" />
+										<Calendar class="h-3.5 w-3.5 text-brand-600" />
 										{formatDate(t.convoy_departure_at || t.event_starts_at)}
 									</p>
 									<p class="flex items-center gap-1.5">
-										<MapPin class="h-3.5 w-3.5 text-emerald-600" />
+										<MapPin class="h-3.5 w-3.5 text-brand-600" />
 										{t.convoy_meeting_point || t.event_venue}
 									</p>
 									{t.item_type === 'convoy_ticket' &&
@@ -385,7 +385,7 @@ export default function TicketsWallet() {
 										<button
 											type="button"
 											onClick={() => setActiveQrTicket(t)}
-											class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white hover:bg-emerald-700 transition-colors cursor-pointer shadow-xs"
+											class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white hover:bg-brand-700 transition-colors cursor-pointer shadow-xs"
 										>
 											<QrCode class="h-4 w-4" />
 											Afficher QR
@@ -398,7 +398,7 @@ export default function TicketsWallet() {
 												title="Télécharger en image PNG"
 												class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
 											>
-												<Download class="h-3.5 w-3.5 text-emerald-600" />
+												<Download class="h-3.5 w-3.5 text-brand-600" />
 												Image
 											</button>
 											<button
@@ -407,7 +407,7 @@ export default function TicketsWallet() {
 												title="Télécharger en PDF"
 												class="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
 											>
-												<FileText class="h-3.5 w-3.5 text-emerald-600" />
+												<FileText class="h-3.5 w-3.5 text-brand-600" />
 												PDF
 											</button>
 										</div>

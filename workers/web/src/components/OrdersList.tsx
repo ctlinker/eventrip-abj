@@ -18,7 +18,7 @@ interface OrderSummary {
 
 const STATUS_BADGE: Record<string, { label: string; cls: string }> = {
 	pending_payment: { label: 'En attente de paiement', cls: 'bg-amber-50 text-amber-800 border-amber-200' },
-	under_review: { label: 'Vérification en cours', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+	under_review: { label: 'Vérification en cours', cls: 'bg-brand-50 text-brand-700 border-brand-200' },
 	confirmed: { label: 'Confirmée', cls: 'bg-emerald-600 text-white border-emerald-600' },
 	rejected: { label: 'Rejetée', cls: 'bg-red-50 text-red-700 border-red-200' },
 	expired: { label: 'Expirée', cls: 'bg-slate-100 text-slate-600 border-slate-200' },
@@ -63,11 +63,11 @@ export default function OrdersList() {
 	if (orders.length === 0) {
 		return (
 			<div class="rounded-2xl border border-slate-200 bg-slate-50/60 p-10 text-center">
-				<ShoppingBag class="mx-auto h-10 w-10 text-emerald-600 mb-3" />
+				<ShoppingBag class="mx-auto h-10 w-10 text-brand-600 mb-3" />
 				<p class="font-bold text-slate-950">Aucune commande pour le moment</p>
 				<a
 					href="/"
-					class="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+					class="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700"
 				>
 					Explorer les événements
 				</a>
@@ -108,7 +108,7 @@ export default function OrdersList() {
 							<span class="text-base font-black text-slate-950">
 								{formatXof(order.total_amount_xof)}
 							</span>
-							<ArrowRight class="h-4 w-4 text-slate-400 group-hover:text-emerald-600 transition-colors" />
+							<ArrowRight class="h-4 w-4 text-slate-400 group-hover:text-brand-600 transition-colors" />
 						</div>
 					</a>
 				);

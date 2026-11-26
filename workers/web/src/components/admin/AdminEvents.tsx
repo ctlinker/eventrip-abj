@@ -445,7 +445,7 @@ export default function AdminEvents() {
 								: 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
 						}`}
 					>
-						<Tag class="h-4 w-4 text-emerald-600" />
+						<Tag class="h-4 w-4 text-brand-600" />
 						Catégories ({eventCategories.length})
 					</button>
 					<button
@@ -460,7 +460,7 @@ export default function AdminEvents() {
 								: 'text-slate-600 hover:bg-white/70 hover:text-slate-900'
 						}`}
 					>
-						<Bus class="h-4 w-4 text-emerald-600" />
+						<Bus class="h-4 w-4 text-brand-600" />
 						Départs ({events.reduce((acc, ev) => acc + ev.convoys.length, 0)})
 					</button>
 				</div>
@@ -472,7 +472,7 @@ export default function AdminEvents() {
 							setView('create');
 							setError(null);
 						}}
-						class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white shadow-xs hover:bg-emerald-700 cursor-pointer"
+						class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white shadow-xs hover:bg-brand-700 cursor-pointer"
 					>
 						<Plus class="h-4 w-4" />
 						Nouvel événement
@@ -514,11 +514,11 @@ export default function AdminEvents() {
 							placeholder="Nouvelle catégorie (ex: Conférence, Gala...)"
 							value={newCatName}
 							onInput={(e) => setNewCatName((e.target as HTMLInputElement).value)}
-							class="flex-1 min-w-[220px] rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+							class="flex-1 min-w-[220px] rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-brand-600 focus:outline-none"
 						/>
 						<button
 							type="submit"
-							class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700 cursor-pointer shadow-xs"
+							class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700 cursor-pointer shadow-xs"
 						>
 							<Plus class="h-4 w-4" />
 							Ajouter
@@ -531,7 +531,7 @@ export default function AdminEvents() {
 								key={cat.id}
 								class="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-800"
 							>
-								<Tag class="h-3.5 w-3.5 text-emerald-600" />
+								<Tag class="h-3.5 w-3.5 text-brand-600" />
 								{cat.name}
 							</span>
 						))}
@@ -567,7 +567,7 @@ export default function AdminEvents() {
 											id="dep-tab-event"
 											value={depTabEventId || events[0]?.id || ''}
 											onChange={(e) => setDepTabEventId((e.target as HTMLSelectElement).value)}
-											class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+											class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
 										>
 											{events.map((ev) => (
 												<option key={ev.id} value={ev.id}>
@@ -590,7 +590,7 @@ export default function AdminEvents() {
 													commune: (e.target as HTMLSelectElement).value,
 												})
 											}
-											class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+											class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
 										>
 											{ABIDJAN_COMMUNES.map((c) => (
 												<option key={c} value={c}>
@@ -616,7 +616,7 @@ export default function AdminEvents() {
 													meetingPoint: (e.target as HTMLInputElement).value,
 												})
 											}
-											class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+											class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
 										/>
 									</div>
 
@@ -636,7 +636,7 @@ export default function AdminEvents() {
 													capacity: (e.target as HTMLInputElement).value,
 												})
 											}
-											class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+											class="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
 										/>
 									</div>
 								</div>
@@ -657,14 +657,14 @@ export default function AdminEvents() {
 													departureAt: (e.target as HTMLInputElement).value,
 												})
 											}
-											class="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+											class="rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-brand-600 focus:outline-none"
 										/>
 									</div>
 
 									<button
 										type="submit"
 										disabled={isAddingDeparture}
-										class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-xs"
+										class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-xs"
 									>
 										<Plus class="h-4 w-4" />
 										{isAddingDeparture ? 'Ajout...' : 'Ajouter ce départ'}
@@ -693,7 +693,7 @@ export default function AdminEvents() {
 												<p class="font-bold text-slate-900 truncate">{cv.commune || cv.name}</p>
 												<p class="text-slate-500 truncate">{cv.meeting_point}</p>
 											</div>
-											<span class="shrink-0 font-bold text-emerald-700">
+											<span class="shrink-0 font-bold text-brand-700">
 												{Math.max(0, cv.capacity - cv.reserved_count)}/{cv.capacity} dispo
 											</span>
 										</div>
@@ -719,7 +719,7 @@ export default function AdminEvents() {
 								placeholder="Ex: Concert Live Assinie"
 								value={title}
 								onInput={(e) => setTitle((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-brand-600 focus:outline-none"
 							/>
 						</div>
 
@@ -730,7 +730,7 @@ export default function AdminEvents() {
 									id="ev-cat"
 									value={categoryId}
 									onChange={(e) => setCategoryId((e.target as HTMLSelectElement).value)}
-									class="flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+									class="flex-1 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm focus:border-brand-600 focus:outline-none"
 								>
 									<option value="">Choisir une catégorie...</option>
 									{eventCategories.map((cat) => (
@@ -743,7 +743,7 @@ export default function AdminEvents() {
 									type="button"
 									title="Ajouter une nouvelle catégorie"
 									onClick={() => setShowInlineCat(!showInlineCat)}
-									class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-slate-100 cursor-pointer"
+									class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-brand-700 hover:bg-slate-100 cursor-pointer"
 								>
 									+
 								</button>
@@ -770,7 +770,7 @@ export default function AdminEvents() {
 										type="button"
 										disabled={isAddingCategory}
 										onClick={() => handleAddEventCategory()}
-										class="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+										class="rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-bold text-white disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
 									>
 										{isAddingCategory ? '...' : 'Créer'}
 									</button>
@@ -787,7 +787,7 @@ export default function AdminEvents() {
 								placeholder="Ex: Assinie-Mafia"
 								value={venue}
 								onInput={(e) => setVenue((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-brand-600 focus:outline-none"
 							/>
 						</div>
 
@@ -799,7 +799,7 @@ export default function AdminEvents() {
 								required
 								value={startsAt}
 								onInput={(e) => setStartsAt((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-brand-600 focus:outline-none"
 							/>
 						</div>
 
@@ -813,7 +813,7 @@ export default function AdminEvents() {
 								placeholder="Ex: 10000"
 								value={priceXof}
 								onInput={(e) => setPriceXof((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-brand-600 focus:outline-none"
 							/>
 						</div>
 
@@ -827,7 +827,7 @@ export default function AdminEvents() {
 								placeholder={`Défaut : ${defaultMerchantId || 'plateforme'}`}
 								value={waveUrl}
 								onInput={(e) => setWaveUrl((e.target as HTMLInputElement).value)}
-								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+								class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-brand-600 focus:outline-none"
 							/>
 						</div>
 					</div>
@@ -841,7 +841,7 @@ export default function AdminEvents() {
 							placeholder="Description de l'événement"
 							value={description}
 							onInput={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
-							class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-emerald-600 focus:outline-none"
+							class="w-full rounded-xl border border-slate-200 px-3.5 py-2 text-sm focus:border-brand-600 focus:outline-none"
 						/>
 					</div>
 
@@ -863,7 +863,7 @@ export default function AdminEvents() {
 										},
 									])
 								}
-								class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-50 cursor-pointer"
+								class="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-brand-700 hover:bg-brand-50 cursor-pointer"
 							>
 								<Plus class="h-3.5 w-3.5" />
 								Ajouter un départ
@@ -1045,7 +1045,7 @@ export default function AdminEvents() {
 										: 'Brouillon';
 							const statusCls =
 								ev.status === 'published'
-									? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+									? 'bg-brand-50 text-brand-700 border-brand-200'
 									: ev.status === 'archived'
 										? 'bg-amber-50 text-amber-800 border-amber-200'
 										: 'bg-slate-100 text-slate-700 border-slate-200';
@@ -1064,7 +1064,7 @@ export default function AdminEvents() {
 														{ev.category_name}
 													</span>
 												)}
-												<span class="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-xs font-bold text-emerald-700">
+												<span class="rounded-full bg-brand-50 border border-brand-200 px-2.5 py-0.5 text-xs font-bold text-brand-700">
 													{effectivePrice > 0 ? formatXof(effectivePrice) : 'Gratuit'}
 												</span>
 											</div>
@@ -1072,7 +1072,7 @@ export default function AdminEvents() {
 												{formatDate(ev.starts_at)} • {ev.venue}
 											</p>
 											{previewUrl && (
-												<p class="font-mono text-[11px] text-emerald-700 mt-1 break-all">
+												<p class="font-mono text-[11px] text-brand-700 mt-1 break-all">
 													{previewUrl}
 												</p>
 											)}
@@ -1082,7 +1082,7 @@ export default function AdminEvents() {
 												<button
 													type="button"
 													onClick={() => setEventStatus(ev, 'published')}
-													class="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 cursor-pointer"
+													class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-700 cursor-pointer"
 												>
 													<RotateCcw class="h-3.5 w-3.5" />
 													Réactiver
@@ -1096,7 +1096,7 @@ export default function AdminEvents() {
 														}
 														class={`rounded-xl px-3 py-1.5 text-xs font-bold border cursor-pointer ${
 															ev.status === 'published'
-																? 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+																? 'bg-brand-600 text-white border-brand-600 hover:bg-brand-700'
 																: 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
 														}`}
 													>
@@ -1205,7 +1205,7 @@ export default function AdminEvents() {
 														{cv.commune || cv.name}{' '}
 														{cv.meeting_point ? `• ${cv.meeting_point}` : ''}
 													</span>
-													<span class="font-bold text-emerald-700">
+													<span class="font-bold text-brand-700">
 														{Math.max(0, cv.capacity - cv.reserved_count)}/{cv.capacity} dispo
 													</span>
 												</div>

@@ -18,8 +18,8 @@ export default function EventImageCarousel({
 
 	if (urls.length === 0) {
 		const placeholder = (
-			<div class={`relative ${aspectClass} w-full bg-slate-50 bg-hatched-green flex items-center justify-center overflow-hidden`}>
-				<Ticket class="h-12 w-12 text-emerald-600/50" />
+			<div class={`relative ${aspectClass} w-full bg-slate-50 bg-hatched-gold flex items-center justify-center overflow-hidden`}>
+				<Ticket class="h-12 w-12 text-brand-600/50" />
 			</div>
 		);
 		return href ? (

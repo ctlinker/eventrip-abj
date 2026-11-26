@@ -64,7 +64,7 @@ export default function WishlistPage() {
 	if (unauthorized) {
 		return (
 			<div class="rounded-2xl border border-slate-200 bg-white p-10 text-center space-y-4">
-				<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+				<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
 					<Heart class="h-6 w-6" />
 				</div>
 				<h2 class="text-lg font-bold text-slate-950">Connectez-vous pour voir vos favoris</h2>
@@ -73,7 +73,7 @@ export default function WishlistPage() {
 				</p>
 				<a
 					href="/auth?next=/wishlist"
-					class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 transition-colors"
+					class="inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors"
 				>
 					Se connecter
 				</a>
@@ -100,7 +100,7 @@ export default function WishlistPage() {
 					</p>
 					<a
 						href="/"
-						class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 transition-colors"
+						class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors"
 					>
 						<Compass class="h-4 w-4" />
 						Explorer les événements
@@ -151,7 +151,7 @@ export default function WishlistPage() {
 														key={cv.id}
 														class="inline-flex items-center gap-1 rounded-lg border border-slate-200/90 bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-700"
 													>
-														<MapPin class="h-3 w-3 text-emerald-600" />
+														<MapPin class="h-3 w-3 text-brand-600" />
 														{cv.commune || cv.name} • {cv.remaining}/{cv.capacity} dispo
 													</span>
 												))}
@@ -159,7 +159,7 @@ export default function WishlistPage() {
 										)}
 
 										<div class="flex flex-1 flex-col p-5">
-											<h3 class="text-lg font-bold text-slate-950 group-hover:text-emerald-700 transition-colors leading-snug">
+											<h3 class="text-lg font-bold text-slate-950 group-hover:text-brand-700 transition-colors leading-snug">
 												{event.title}
 											</h3>
 											<p class="mt-1.5 text-xs font-medium text-slate-500 truncate">
@@ -175,7 +175,7 @@ export default function WishlistPage() {
 														<p class="text-sm font-medium text-slate-500">Tarif à venir</p>
 													)}
 												</div>
-												<span class="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-xs group-hover:bg-emerald-700 transition-colors">
+												<span class="inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-xs font-bold text-white shadow-xs group-hover:bg-brand-700 transition-colors">
 													Réserver
 												</span>
 											</div>

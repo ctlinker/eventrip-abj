@@ -253,7 +253,7 @@ export default function OrderDetail({ orderId }: Props) {
         <div class="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div class="flex flex-wrap items-center gap-2">
-              <p class="font-mono text-xs font-bold uppercase tracking-wide text-emerald-600">
+              <p class="font-mono text-xs font-bold uppercase tracking-wide text-brand-600">
                 {order.reference}
               </p>
               <button
@@ -263,7 +263,7 @@ export default function OrderDetail({ orderId }: Props) {
                 class="inline-flex items-center gap-1 rounded-md border border-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 {copied ? (
-                  <Check class="h-3 w-3 text-emerald-600" />
+                  <Check class="h-3 w-3 text-brand-600" />
                 ) : (
                   <Copy class="h-3 w-3" />
                 )}
@@ -299,7 +299,7 @@ export default function OrderDetail({ orderId }: Props) {
           )}
 
           {order.status === "under_review" && (
-            <div class="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-bold text-emerald-800">
+            <div class="inline-flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-bold text-brand-800">
               <Clock class="h-4 w-4 shrink-0" />
               <span>
                 Vérification en cours
@@ -331,9 +331,9 @@ export default function OrderDetail({ orderId }: Props) {
         {!pushReady &&
           (order.status === "pending_payment" ||
             order.status === "under_review") && (
-            <div class="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3.5 text-xs">
+            <div class="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-brand-200 bg-brand-50/60 p-3.5 text-xs">
               <div class="flex items-center gap-2 text-slate-800">
-                <BellRing class="h-4 w-4 text-emerald-600 shrink-0" />
+                <BellRing class="h-4 w-4 text-brand-600 shrink-0" />
                 <span>
                   Recevez une alerte instantanée dès que vos billets QR sont
                   activés.
@@ -351,7 +351,7 @@ export default function OrderDetail({ orderId }: Props) {
                   else if (res.error) setPushMessage(res.error);
                   setPushLoading(false);
                 }}
-                class="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 font-bold text-white hover:bg-emerald-700 cursor-pointer"
+                class="shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 font-bold text-white hover:bg-brand-700 cursor-pointer"
               >
                 {pushLoading ? "Activation..." : "Activer les alertes"}
               </button>
@@ -363,7 +363,7 @@ export default function OrderDetail({ orderId }: Props) {
         <div class="rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs space-y-6">
           <div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div class="space-y-3">
-              <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 border border-emerald-200">
+              <span class="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-bold text-brand-700 border border-brand-200">
                 Étape 1 sur 2
               </span>
               <h2 class="text-lg font-extrabold text-slate-950">
@@ -378,7 +378,7 @@ export default function OrderDetail({ orderId }: Props) {
                   href={payment.wave_payment_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-xs hover:bg-emerald-700 transition-colors"
+                  class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-bold text-white shadow-xs hover:bg-brand-700 transition-colors"
                 >
                   <span>
                     Payer avec Wave ({formatXof(order.total_amount_xof)})
@@ -436,7 +436,7 @@ export default function OrderDetail({ orderId }: Props) {
                     setWaveRef((e.target as HTMLInputElement).value)
                   }
                   placeholder="Ex: T_CI_XXXXXXXX"
-                  class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-mono focus:border-emerald-600 focus:outline-none"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-mono focus:border-brand-600 focus:outline-none"
                 />
               </div>
 
@@ -456,7 +456,7 @@ export default function OrderDetail({ orderId }: Props) {
                     setPayerPhone((e.target as HTMLInputElement).value)
                   }
                   placeholder="+225 07 00 00 00 00"
-                  class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:border-emerald-600 focus:outline-none"
+                  class="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm focus:border-brand-600 focus:outline-none"
                 />
               </div>
             </div>
@@ -483,8 +483,8 @@ export default function OrderDetail({ orderId }: Props) {
                   </button>
                 </div>
               ) : (
-                <label class="flex max-w-md cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-3.5 text-sm text-slate-600 hover:border-emerald-500 hover:bg-emerald-50/30 transition-colors">
-                  <ImagePlus class="h-5 w-5 text-emerald-600 shrink-0" />
+                <label class="flex max-w-md cursor-pointer items-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-slate-50/60 px-4 py-3.5 text-sm text-slate-600 hover:border-brand-500 hover:bg-brand-50/30 transition-colors">
+                  <ImagePlus class="h-5 w-5 text-brand-600 shrink-0" />
                   <span>Choisir une capture (JPEG, PNG, WebP — max 5 Mo)</span>
                   <input
                     type="file"
@@ -507,7 +507,7 @@ export default function OrderDetail({ orderId }: Props) {
             <button
               type="submit"
               disabled={(!file && !waveRef.trim()) || uploading}
-              class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer shadow-xs"
+              class="inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-50 cursor-pointer shadow-xs"
             >
               <Upload class="h-4 w-4" />
               {uploading ? "Envoi en cours..." : "Soumettre pour validation"}
