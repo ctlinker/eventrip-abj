@@ -6,7 +6,8 @@
 		"deploy": "wrangler deploy",
 		"dev": "wrangler dev --port 8788 --persist-to ../api/.wrangler/state",
 		"start": "wrangler dev --port 8788 --persist-to ../api/.wrangler/state",
-		"cf-typegen": "wrangler types"
+		"cf-typegen": "wrangler types",
+		"setup": "bun run scripts/setup-vapid.ts"
 	},
 	"dependencies": {
 		"utils": "workspace:*",
