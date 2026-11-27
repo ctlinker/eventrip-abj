@@ -10,6 +10,7 @@ import {
 	Menu,
 	X,
 	MessageCircle,
+	KeyRound,
 } from 'lucide-preact';
 import { apiFetch, type ApiUser } from '../lib/api';
 import { disableWebPush, disconnectRealtime, subscribeRealtime } from '../lib/realtime';
@@ -242,6 +243,18 @@ export default function Navbar({
 							<span class="hidden lg:inline text-xs font-semibold text-slate-500">
 								{user.name.split(' ')[0]}
 							</span>
+							<a
+								href="/change-password"
+								title="Changer mon mot de passe"
+								aria-label="Changer mon mot de passe"
+								class={`inline-flex items-center justify-center rounded-xl border p-2 text-sm font-semibold transition-colors ${
+									currentPath === '/change-password'
+										? 'border-brand-200 bg-brand-50 text-brand-700'
+										: 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-navy-950'
+								}`}
+							>
+								<KeyRound class="h-4 w-4" />
+							</a>
 							<button
 								type="button"
 								onClick={handleLogout}
@@ -335,6 +348,12 @@ export default function Navbar({
 									<span class="flex items-center gap-2.5">
 										<Ticket class="h-4 w-4 text-brand-600" />
 										<span>Mes billets</span>
+									</span>
+								</a>
+								<a href="/change-password" onClick={() => setMobileMenuOpen(false)} class={mobileLinkCls('/change-password', true)}>
+									<span class="flex items-center gap-2.5">
+										<KeyRound class="h-4 w-4 text-brand-600" />
+										<span>Mot de passe</span>
 									</span>
 								</a>
 							</>

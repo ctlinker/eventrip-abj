@@ -118,6 +118,27 @@ export interface Events {
   wave_payment_url: string | null;
 }
 
+export interface MailLogs {
+  created_at: string;
+  error_message: string | null;
+  id: string;
+  provider_id: string | null;
+  recipient: string;
+  status: string;
+  subject: string;
+  template: Generated<string>;
+}
+
+export interface MailSettings {
+  cooldown_minutes: Generated<number>;
+  daily_limit: Generated<number>;
+  id: string;
+  is_enabled: Generated<number>;
+  monthly_limit: Generated<number>;
+  updated_at: string;
+  updated_by: string | null;
+}
+
 export interface NotificationOutbox {
   attempts: Generated<number>;
   created_at: string;
@@ -284,6 +305,8 @@ export interface DB {
   event_categories: EventCategories;
   event_revisions: EventRevisions;
   events: Events;
+  mail_logs: MailLogs;
+  mail_settings: MailSettings;
   notification_outbox: NotificationOutbox;
   notifications: Notifications;
   order_items: OrderItems;

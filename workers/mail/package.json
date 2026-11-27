@@ -1,0 +1,23 @@
+{
+	"name": "mail",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"deploy": "wrangler deploy",
+		"dev": "wrangler dev --port 8789 --persist-to ../api/.wrangler/state",
+		"start": "wrangler dev --port 8789 --persist-to ../api/.wrangler/state",
+		"test": "vitest",
+		"cf-typegen": "wrangler types"
+	},
+	"devDependencies": {
+		"@cloudflare/vitest-plugin": "^1.4.3",
+		"@types/node": "^26.6.11",
+		"typescript": "^5.5.2",
+		"vitest": "~5.0.3",
+		"wrangler": "^4.168.0"
+	},
+	"dependencies": {
+		"resend": "^6.40.1",
+		"utils": "workspace:*"
+	}
+}

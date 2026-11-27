@@ -9,6 +9,7 @@ import migration006 from '../../../packages/db/migrations/006_wishlists.sql?raw'
 import migration007 from '../../../packages/db/migrations/007_notifications_realtime_push.sql?raw';
 import migration008 from '../../../packages/db/migrations/008_communes.sql?raw';
 import migration009 from '../../../packages/db/migrations/009_event_convoy_revisions.sql?raw';
+import migration010 from '../../../packages/db/migrations/010_mail_quota_and_logs.sql?raw';
 import { expirePendingOrders, sendExpiringOrderReminders } from '../src/services/orders';
 import { maybeBootstrapSuperAdmin } from '../src/lib/bootstrap';
 
@@ -64,6 +65,7 @@ describe('Eventrip API Core', () => {
 		await applySql(migration007);
 		await applySql(migration008);
 		await applySql(migration009);
+		await applySql(migration010);
 
 		const client = await signUpAndGetCookie('Kouame Client', 'client@eventrip.ci', '+2250700000001');
 		clientCookie = client.cookie;
@@ -763,5 +765,144 @@ describe('Eventrip API Core', () => {
 		expect(cloneData.event.price_xof).toBe(15000);
 		expect(cloneData.event.convoys[0].reserved_count).toBe(0);
 		expect(cloneData.event.convoys[0].capacity).toBe(18); // 20 - 2 places déjà réservées
+	});
+
+	it('handles password reset via MAIL binding, password change, mail quotas, and rich audit logs', async () => {
+		const targetEmail = 'recovery@eventrip-abj.com';
+		await signUpAndGetCookie('Aya Recovery', targetEmail, '+2250799887766');
+
+		// 1. Demande de réinitialisation de mot de passe
+		const reqResetRes = await SELF.fetch('https://eventrip-abj.com/api/auth/request-password-reset', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Origin: 'https://eventrip-abj.com',
+			},
+			body: JSON.stringify({
+				email: targetEmail,
+				redirectTo: 'https://eventrip-abj.com/reset-password',
+			}),
+		});
+		expect(reqResetRes.status).toBe(200);
+
+		const lastMailRes = await env.MAIL.fetch('http://internal/last-test-mail');
+		const lastMailData = (await lastMailRes.json()) as {
+			mail: {
+				to: string;
+				subject: string;
+				html: string;
+				text: string;
+				template: string;
+			} | null;
+		};
+		const capturedMail = lastMailData.mail;
+		expect(capturedMail).toBeTruthy();
+		expect(capturedMail?.to).toBe(targetEmail);
+		expect(capturedMail?.template).toBe('password_reset');
+
+		const linkMatch = capturedMail?.text.match(
+			/https:\/\/eventrip-abj\.com\/reset-password\?token=([^\s]+)/,
+		);
+		expect(linkMatch).toBeTruthy();
+		const resetToken = decodeURIComponent(linkMatch![1]);
+
+		// 2. Réinitialiser le mot de passe avec le jeton reçu
+		const doResetRes = await SELF.fetch('https://eventrip-abj.com/api/auth/reset-password', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				newPassword: 'UpdatedPassword2026!',
+				token: resetToken,
+			}),
+		});
+		expect(doResetRes.status).toBe(200);
+
+		// L'ancien mot de passe échoue
+		const oldLoginRes = await SELF.fetch('https://eventrip-abj.com/api/auth/sign-in/email', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email: targetEmail, password: 'Password123!' }),
+		});
+		expect(oldLoginRes.status).toBe(401);
+
+		// Le nouveau mot de passe fonctionne
+		const newLoginRes = await SELF.fetch('https://eventrip-abj.com/api/auth/sign-in/email', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ email: targetEmail, password: 'UpdatedPassword2026!' }),
+		});
+		expect(newLoginRes.status).toBe(200);
+		const newSessionCookie = (newLoginRes.headers.get('set-cookie') || '').split(';')[0];
+
+		// 3. Changement de mot de passe depuis une session authentifiée (0 email consommé)
+		const changePwdRes = await SELF.fetch('https://eventrip-abj.com/api/auth/change-password', {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Cookie: newSessionCookie,
+			},
+			body: JSON.stringify({
+				currentPassword: 'UpdatedPassword2026!',
+				newPassword: 'SessionChanged2026!',
+				revokeOtherSessions: true,
+			}),
+		});
+		expect(changePwdRes.status).toBe(200);
+
+		// 4. Super Admin : quotas mail & journaux d'audit enrichis
+		const superAdmin = await signUpAndGetCookie('Super Boss', 'superboss@eventrip-abj.com');
+		await env.DB.prepare("UPDATE user SET role = 'super_admin' WHERE id = ?")
+			.bind(superAdmin.userId)
+			.run();
+
+		const quotaGetRes = await SELF.fetch('https://example.com/api/super-admin/mail-quota', {
+			headers: { Cookie: superAdmin.cookie },
+		});
+		expect(quotaGetRes.status).toBe(200);
+		const quotaInit = (await quotaGetRes.json()) as {
+			settings: { daily_limit: number; monthly_limit: number; is_enabled: number };
+			worker: { configured: boolean; from: string };
+		};
+		expect(quotaInit.settings.daily_limit).toBe(100);
+		expect(quotaInit.settings.monthly_limit).toBe(3000);
+		expect(quotaInit.worker.configured).toBe(true);
+
+		const quotaPatchRes = await SELF.fetch('https://example.com/api/super-admin/mail-quota', {
+			method: 'PATCH',
+			headers: {
+				'Content-Type': 'application/json',
+				Cookie: superAdmin.cookie,
+			},
+			body: JSON.stringify({
+				daily_limit: 80,
+				monthly_limit: 2500,
+				cooldown_minutes: 10,
+				is_enabled: 1,
+			}),
+		});
+		expect(quotaPatchRes.status).toBe(200);
+
+		// Vérifier les journaux d'audit enrichis (acteur + old_state/new_state + auth events)
+		const auditRes = await SELF.fetch('https://example.com/api/super-admin/audit-logs?limit=50', {
+			headers: { Cookie: superAdmin.cookie },
+		});
+		expect(auditRes.status).toBe(200);
+		const auditData = (await auditRes.json()) as {
+			logs: Array<{
+				action: string;
+				entity_type: string;
+				actor_name: string | null;
+				old_state: string | null;
+				new_state: string | null;
+			}>;
+		};
+
+		const quotaAudit = auditData.logs.find((l) => l.action === 'admin.mail_quota_update');
+		expect(quotaAudit).toBeTruthy();
+		expect(quotaAudit?.actor_name).toBe('Super Boss');
+		expect(quotaAudit?.new_state).toContain('"daily_limit":80');
+
+		expect(auditData.logs.some((l) => l.action === 'auth.password_reset')).toBe(true);
+		expect(auditData.logs.some((l) => l.action === 'auth.password_change')).toBe(true);
 	});
 });

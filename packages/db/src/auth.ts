@@ -1,9 +1,62 @@
 import { betterAuth, type Auth } from 'better-auth';
 import { D1Dialect } from 'kysely-d1';
 
+export interface ResetPasswordEmailPayload {
+	user: { id: string; email: string; name: string };
+	url: string;
+	token: string;
+	request?: Request;
+}
+
+export interface PasswordResetAuditPayload {
+	user: { id: string; email: string; name: string };
+	request?: Request;
+}
+
+export interface AuthHooks {
+	sendResetPasswordEmail?: (payload: ResetPasswordEmailPayload) => Promise<void>;
+	onPasswordResetAudit?: (payload: PasswordResetAuditPayload) => Promise<void>;
+}
+
+let currentAuthHooks: AuthHooks = {};
+
 export const rawBetterAuthConfig = {
 	emailAndPassword: {
 		enabled: true,
+		revokeSessionsOnPasswordReset: true,
+		async sendResetPassword(
+			data: { user: { id: string; email: string; name: string }; url: string; token: string },
+			request?: Request,
+		) {
+			if (!currentAuthHooks.sendResetPasswordEmail) {
+				throw new Error("Service d'envoi d'email non configuré.");
+			}
+			await currentAuthHooks.sendResetPasswordEmail({
+				user: {
+					id: data.user.id,
+					email: data.user.email,
+					name: data.user.name,
+				},
+				url: data.url,
+				token: data.token,
+				request,
+			});
+		},
+		async onPasswordReset(
+			data: { user: { id: string; email: string; name: string } },
+			request?: Request,
+		) {
+			if (currentAuthHooks.onPasswordResetAudit) {
+				await currentAuthHooks.onPasswordResetAudit({
+					user: {
+						id: data.user.id,
+						email: data.user.email,
+						name: data.user.name,
+					},
+					request,
+				});
+			}
+		},
 	},
 	user: {
 		additionalFields: {
@@ -44,6 +97,9 @@ export const rawBetterAuthConfig = {
 			'http://localhost:*',
 			'http://127.0.0.1:*',
 			'http://10.0.2.2:*',
+			'https://eventrip-abj.com',
+			'https://*.eventrip-abj.com',
+			'https://*.app.github.dev',
 			'https://*.workers.dev',
 			'https://*.pages.dev',
 		];
@@ -70,7 +126,10 @@ export const rawBetterAuthConfig = {
 let cachedAuth: Auth<any> | undefined;
 let lastAuthDBBinding: D1Database | undefined;
 
-export function initAuth(DB: D1Database): void {
+export function initAuth(DB: D1Database, hooks?: AuthHooks): void {
+	if (hooks) {
+		currentAuthHooks = { ...currentAuthHooks, ...hooks };
+	}
 	if (!cachedAuth || lastAuthDBBinding !== DB) {
 		lastAuthDBBinding = DB;
 		cachedAuth = betterAuth({
@@ -80,9 +139,11 @@ export function initAuth(DB: D1Database): void {
 	}
 }
 
-export function getAuth(DB?: D1Database): Auth<any> {
+export function getAuth(DB?: D1Database, hooks?: AuthHooks): Auth<any> {
 	if (DB) {
-		initAuth(DB);
+		initAuth(DB, hooks);
+	} else if (hooks) {
+		currentAuthHooks = { ...currentAuthHooks, ...hooks };
 	}
 
 	if (!cachedAuth) {

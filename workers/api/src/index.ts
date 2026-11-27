@@ -1,13 +1,19 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { getAuth } from 'db';
+import { getAuth, getDB } from 'db';
 import { tryCatch } from 'utils';
 import { maybeBootstrapSuperAdmin } from './lib/bootstrap';
+import { writeAuditLog } from './lib/utils';
 import { requireAuth } from './middleware/auth';
 import { publicRoutes } from './routes/public';
 import { clientRoutes } from './routes/client';
 import { adminRoutes } from './routes/admin';
 import { superAdminRoutes } from './routes/super-admin';
+import {
+	buildPasswordResetEmail,
+	buildPasswordResetLink,
+	sendMailViaBinding,
+} from './services/mail';
 import { flushNotificationOutbox } from './services/notifications';
 import { expirePendingOrders, sendExpiringOrderReminders } from './services/orders';
 import type { AppEnv } from './types';
@@ -68,8 +74,58 @@ app.all('/api/auth/*', async (c) => {
 		}
 	}
 
-	const auth = getAuth(c.env.DB);
+	const auth = getAuth(c.env.DB, {
+		async sendResetPasswordEmail({ user, url, token, request }) {
+			const resetLink = buildPasswordResetLink(url, token, request ?? c.req.raw);
+			const mailContent = buildPasswordResetEmail({
+				name: user.name,
+				resetLink,
+			});
+			await sendMailViaBinding(c.env, {
+				to: user.email,
+				subject: mailContent.subject,
+				html: mailContent.html,
+				text: mailContent.text,
+				template: 'password_reset',
+			});
+		},
+		async onPasswordResetAudit({ user }) {
+			await tryCatch(
+				writeAuditLog(getDB(c.env.DB), {
+					actorId: user.id,
+					action: 'auth.password_reset',
+					entityType: 'user',
+					entityId: user.id,
+					metadata: { method: 'email_token' },
+				}),
+			);
+		},
+	});
+
+	let changePasswordActorId: string | null = null;
+	if (c.req.method === 'POST' && c.req.path === '/api/auth/change-password') {
+		const preSession = await tryCatch(
+			auth.api.getSession({ headers: c.req.raw.headers }),
+		);
+		if (preSession.ok && preSession.data?.user?.id) {
+			changePasswordActorId = preSession.data.user.id;
+		}
+	}
+
 	const res = await auth.handler(c.req.raw);
+
+	if (res.ok && changePasswordActorId) {
+		await tryCatch(
+			writeAuditLog(getDB(c.env.DB), {
+				actorId: changePasswordActorId,
+				action: 'auth.password_change',
+				entityType: 'user',
+				entityId: changePasswordActorId,
+				metadata: { method: 'authenticated_session' },
+			}),
+		);
+	}
+
 	if (
 		res.ok &&
 		c.env.BOOTSTRAP_SUPER_ADMIN_EMAIL &&

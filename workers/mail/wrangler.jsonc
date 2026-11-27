@@ -1,0 +1,28 @@
+/**
+ * Worker dédié à l'envoi d'emails transactionnels (Resend) avec quotas D1 & journalisation
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "mail",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-11-23",
+	"compatibility_flags": ["nodejs_compat"],
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "eventrip-db",
+			"database_id": "7a684326-e718-49ef-abd4-671def938220",
+			"migrations_dir": "../../packages/db/migrations"
+		}
+	],
+	"vars": {
+		"MAIL_FROM": "Eventrip <noreply@eventrip-abj.com>"
+	},
+	"secrets": {
+		"required": ["RESEND_API_KEY"]
+	}
+}

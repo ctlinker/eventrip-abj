@@ -1,0 +1,4 @@
+# Clé API Resend (recommandé : "Sending access" restreinte au domaine eventrip-abj.com)
+RESEND_API_KEY=
+# Optionnel : adresse de réponse
+MAIL_REPLY_TO=

@@ -57,6 +57,16 @@ bunx tsc -p workers/api/tsconfig.json --noEmit
 bun run --cwd workers/api test -- --run
 ```
 
+## Audit UI Web avec Playwright (headless)
+
+* **Outil** : `playwright` est installé dans les `devDependencies` à la racine du monorepo (`package.json`).
+* **Usage** : Pour auditer le comportement de l'interface web (`workers/web`), exécuter des scripts Playwright en mode **headless** (`chromium.launch({ headless: true })`, activé par défaut) contre le serveur local (`astro dev --background` ou `bun run --cwd workers/web dev`).
+* **Points à vérifier lors d'un audit** :
+  * Absence d'erreurs console ou d'exceptions non gérées (`console` error, `pageerror`).
+  * Réponses réseau et appels `/api/...` (statuts HTTP, payloads, gestion des erreurs).
+  * Hydratation des îlots Preact, parcours utilisateur complets (formulaires, navigation, états vides/erreurs) et rendu responsive (mobile & desktop).
+  * Capture de captures d'écran ou d'états DOM si nécessaire pour diagnostiquer un bug visuel ou comportemental.
+
 ## Conventions Git
 
 * Réaliser un commit entre chaque tâche/jalon avec le préfixe :

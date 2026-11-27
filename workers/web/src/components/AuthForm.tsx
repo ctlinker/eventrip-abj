@@ -213,9 +213,19 @@ export default function AuthForm() {
 				</div>
 
 				<div>
-					<label for="auth-password" class="block text-sm font-semibold text-slate-700 mb-1">
-						Mot de passe
-					</label>
+					<div class="flex items-center justify-between mb-1">
+						<label for="auth-password" class="block text-sm font-semibold text-slate-700">
+							Mot de passe
+						</label>
+						{mode === 'login' && (
+							<a
+								href="/forgot-password"
+								class="text-xs font-semibold text-brand-600 hover:text-brand-700 hover:underline"
+							>
+								Mot de passe oublié ?
+							</a>
+						)}
+					</div>
 					<input
 						ref={passwordRef}
 						id="auth-password"

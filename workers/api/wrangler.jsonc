@@ -31,6 +31,10 @@
 		{
 			"binding": "WEB_PUSH",
 			"service": "web-push"
+		},
+		{
+			"binding": "MAIL",
+			"service": "mail"
 		}
 	],
 	"queues": {
