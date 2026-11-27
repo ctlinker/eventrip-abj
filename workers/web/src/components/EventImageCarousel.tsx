@@ -55,6 +55,8 @@ export default function EventImageCarousel({
 					key={url}
 					src={url}
 					alt={`${alt} (${idx + 1}/${urls.length})`}
+					loading="lazy"
+					decoding="async"
 					class="h-full w-full shrink-0 object-cover"
 				/>
 			))}

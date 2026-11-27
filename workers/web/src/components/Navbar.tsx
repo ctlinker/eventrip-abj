@@ -159,10 +159,12 @@ export default function Navbar({
 			<div class="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
 				<a href="/" class="flex items-center gap-2.5 shrink-0 group">
 					<img
-						src="/logo.png"
+						src="/logo.webp"
 						alt="ABJ-TRIPEVENT"
 						width="40"
 						height="40"
+						decoding="async"
+						fetchpriority="high"
 						class="h-10 w-10 rounded-full object-contain drop-shadow-xs transition-transform group-hover:scale-105"
 					/>
 					<span class="whitespace-nowrap text-lg sm:text-xl font-black tracking-tight text-navy-950">

@@ -52,7 +52,7 @@ if (api) {
 		<meta name="apple-mobile-web-app-title" content="EVENTRIP-ABJ" />
 		<link rel="manifest" href="/manifest.webmanifest" />
 		<link rel="apple-touch-icon" href="/icon-192.png" />
-		<link rel="icon" type="image/png" href="/logo.png" />
+		<link rel="icon" type="image/webp" href="/logo.webp" />
 		<link rel="icon" href="/favicon.ico" />
 		<link rel="stylesheet" href="/satoshi_fonts/WEB/css/satoshi.css" />
 		<title>{title}</title>
@@ -73,10 +73,12 @@ if (api) {
 			<div class="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
 				<div class="flex items-center gap-3">
 					<img
-						src="/logo.png"
+						src="/logo.webp"
 						alt="ABJ-TRIPEVENT"
 						width="36"
 						height="36"
+						loading="lazy"
+						decoding="async"
 						class="h-9 w-9 rounded-full object-contain shrink-0"
 					/>
 					<p class="font-bold text-white tracking-tight">

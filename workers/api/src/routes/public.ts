@@ -189,7 +189,7 @@ publicRoutes.get('/media/posters/:key{.+}', async (c) => {
 	const headers = new Headers();
 	object.writeHttpMetadata(headers);
 	if (object.httpEtag) headers.set('ETag', object.httpEtag);
-	headers.set('Cache-Control', 'public, max-age=86400');
+	headers.set('Cache-Control', 'public, max-age=31536000, immutable');
 
 	return new Response(object.body, { headers });
 });

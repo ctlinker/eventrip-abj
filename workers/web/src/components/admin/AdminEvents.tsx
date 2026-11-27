@@ -1,14 +1,20 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Plus, ImagePlus, X, Bus, ArrowLeft, Tag, Archive, Trash2, RotateCcw, MapPin, Pencil, History, Copy, Lock } from 'lucide-preact';
+import { Plus, ImagePlus, X, Bus, ArrowLeft, Tag, Archive, Trash2, RotateCcw, MapPin, Pencil, History, Copy, Lock, Sparkles } from 'lucide-preact';
 import {
 	ABIDJAN_COMMUNES,
 	apiFetch,
 	formatDate,
 	formatXof,
 	getEventPosterUrls,
+	posterUrl,
 	type CommuneItem,
 	type EventCategory,
 } from '../../lib/api';
+import {
+	compressImagesToWebP,
+	compressImageToWebP,
+	isWebpPosterKey,
+} from '../../lib/imageCompression';
 import {
 	CloneArchiveModal,
 	EditConvoyModal,
@@ -80,6 +86,9 @@ export default function AdminEvents() {
 	const [isCreatingEvent, setIsCreatingEvent] = useState(false);
 	const [isAddingCategory, setIsAddingCategory] = useState(false);
 	const [isAddingDeparture, setIsAddingDeparture] = useState(false);
+	const [optimizingPosters, setOptimizingPosters] = useState(false);
+	const [optimizeProgress, setOptimizeProgress] = useState<{ done: number; total: number } | null>(null);
+	const [optimizeSummary, setOptimizeSummary] = useState<string | null>(null);
 	const creatingEventRef = useRef(false);
 
 	function load() {
@@ -224,8 +233,9 @@ export default function AdminEvents() {
 			let posterKeys: string[] = [];
 			if (created.event?.id && initialPhotos.length > 0) {
 				try {
+					const compressedPhotos = await compressImagesToWebP(initialPhotos);
 					const form = new FormData();
-					for (const f of initialPhotos) {
+					for (const f of compressedPhotos) {
 						form.append('files', f);
 					}
 					const posterRes = await apiFetch<{ poster_key: string | null; poster_keys: string[] }>(
@@ -329,6 +339,7 @@ export default function AdminEvents() {
 		}
 	}
 
+
 	async function handleDeleteEvent(ev: AdminEvent) {
 		setError(null);
 		try {
@@ -380,12 +391,14 @@ export default function AdminEvents() {
 		}
 	}
 
+
 	async function handleUploadMorePhotos(eventId: string, files: FileList | null) {
 		if (!files || files.length === 0) return;
 		setError(null);
-		const form = new FormData();
-		Array.from(files).forEach((f) => form.append('files', f));
 		try {
+			const compressedFiles = await compressImagesToWebP(Array.from(files));
+			const form = new FormData();
+			compressedFiles.forEach((f) => form.append('files', f));
 			const res = await apiFetch<{ poster_key: string | null; poster_keys: string[] }>(
 				`/api/admin/events/${eventId}/poster`,
 				{
@@ -404,6 +417,7 @@ export default function AdminEvents() {
 			setError(err.message);
 		}
 	}
+
 
 	async function handleRemovePhoto(eventId: string, key: string) {
 		setError(null);
@@ -430,6 +444,107 @@ export default function AdminEvents() {
 			setError(err.message);
 		}
 	}
+
+	function getEventPosterKeys(ev: AdminEvent): string[] {
+		if (Array.isArray(ev.poster_keys) && ev.poster_keys.length > 0) {
+			return ev.poster_keys;
+		}
+		if (ev.poster_key && !ev.poster_key.startsWith('[')) {
+			return [ev.poster_key];
+		}
+		return [];
+	}
+
+	const unoptimizedPosterCount = events.reduce(
+		(acc, ev) => acc + getEventPosterKeys(ev).filter((k) => !isWebpPosterKey(k)).length,
+		0,
+	);
+
+	async function handleOptimizeExistingPosters() {
+		if (optimizingPosters) return;
+		const targets: Array<{ eventId: string; key: string }> = [];
+		for (const ev of events) {
+			for (const key of getEventPosterKeys(ev)) {
+				if (!isWebpPosterKey(key)) {
+					targets.push({ eventId: ev.id, key });
+				}
+			}
+		}
+		if (targets.length === 0) return;
+
+		setError(null);
+		setOptimizeSummary(null);
+		setOptimizingPosters(true);
+		setOptimizeProgress({ done: 0, total: targets.length });
+
+		let convertedCount = 0;
+		let totalBeforeBytes = 0;
+		let totalAfterBytes = 0;
+
+		try {
+			for (const target of targets) {
+				const srcUrl = posterUrl(target.key);
+				if (!srcUrl) continue;
+
+				const resp = await fetch(srcUrl, { credentials: 'include' });
+				if (!resp.ok) {
+					throw new Error(`Impossible de télécharger l’affiche ${target.key}`);
+				}
+				const originalBlob = await resp.blob();
+				totalBeforeBytes += originalBlob.size;
+
+				const compressedFile = await compressImageToWebP(originalBlob, {
+					fileName: target.key.split('/').pop() || 'poster.webp',
+				});
+				totalAfterBytes += compressedFile.size;
+
+				const form = new FormData();
+				form.append('files', compressedFile);
+				await apiFetch<{ poster_key: string | null; poster_keys: string[] }>(
+					`/api/admin/events/${target.eventId}/poster`,
+					{ method: 'POST', body: form },
+				);
+
+				const delRes = await apiFetch<{ poster_keys: string[] }>(
+					`/api/admin/events/${target.eventId}/poster`,
+					{
+						method: 'DELETE',
+						body: JSON.stringify({ key: target.key }),
+					},
+				);
+
+				setEvents((prev) =>
+					prev.map((ev) =>
+						ev.id === target.eventId
+							? {
+									...ev,
+									poster_key: delRes.poster_keys[0] ?? null,
+									poster_keys: delRes.poster_keys,
+								}
+							: ev,
+					),
+				);
+
+				convertedCount += 1;
+				setOptimizeProgress({ done: convertedCount, total: targets.length });
+			}
+
+			const formatSize = (bytes: number) =>
+				bytes >= 1024 * 1024
+					? `${(bytes / (1024 * 1024)).toFixed(2)} Mo`
+					: `${Math.round(bytes / 1024)} Ko`;
+
+			setOptimizeSummary(
+				`${convertedCount} affiche(s) convertie(s) en WebP (${formatSize(totalBeforeBytes)} → ${formatSize(totalAfterBytes)}).`,
+			);
+		} catch (err: any) {
+			setError(err.message || 'Erreur lors de l’optimisation des affiches');
+		} finally {
+			setOptimizingPosters(false);
+			setOptimizeProgress(null);
+		}
+	}
+
 
 	return (
 		<div class="space-y-6">
@@ -1079,6 +1194,40 @@ export default function AdminEvents() {
 
 			{view === 'list' && (
 				<div class="space-y-4">
+					{(unoptimizedPosterCount > 0 || optimizeSummary) && (
+						<div class="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-brand-50/70 px-4 py-3 text-sm">
+							<div class="flex items-center gap-2.5 text-navy-950">
+								<Sparkles class="h-4 w-4 shrink-0 text-brand-600" />
+								<div>
+									{optimizeSummary ? (
+										<p class="font-semibold text-green-800">{optimizeSummary}</p>
+									) : (
+										<p class="font-semibold">
+											{unoptimizedPosterCount} affiche(s) non compressée(s) détectée(s) (JPEG/PNG)
+										</p>
+									)}
+									{unoptimizedPosterCount > 0 && (
+										<p class="text-xs text-slate-600">
+											Convertissez-les automatiquement en WebP depuis votre navigateur pour accélérer le chargement.
+										</p>
+									)}
+								</div>
+							</div>
+							{unoptimizedPosterCount > 0 && (
+								<button
+									type="button"
+									disabled={optimizingPosters}
+									onClick={handleOptimizeExistingPosters}
+									class="inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-brand-700 disabled:opacity-60 cursor-pointer"
+								>
+									<Sparkles class="h-3.5 w-3.5" />
+									{optimizingPosters && optimizeProgress
+										? `Optimisation (${optimizeProgress.done}/${optimizeProgress.total})…`
+										: 'Optimiser en WebP'}
+								</button>
+							)}
+						</div>
+					)}
 					{loading ? (
 						<div class="space-y-4">
 							{[1, 2].map((n) => (
