@@ -13,7 +13,7 @@ function translateChangeError(message?: string): string {
 	return message;
 }
 
-export default function ChangePasswordForm() {
+export default function ChangePasswordForm({ embedded = false }: { embedded?: boolean }) {
 	const [currentPassword, setCurrentPassword] = useState('');
 	const [newPassword, setNewPassword] = useState('');
 	const [confirmPassword, setConfirmPassword] = useState('');
@@ -63,7 +63,13 @@ export default function ChangePasswordForm() {
 	}
 
 	return (
-		<div class="mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+		<div
+			class={
+				embedded
+					? 'max-w-md'
+					: 'mx-auto max-w-md rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm'
+			}
+		>
 			<form onSubmit={handleSubmit} class="space-y-4">
 				<div>
 					<div class="flex items-center justify-between mb-1">

@@ -1,0 +1,16 @@
+---
+import Layout from '../layouts/Layout.astro';
+import SettingsPage from '../components/SettingsPage';
+---
+
+<Layout title="Paramètres — EVENTRIP-ABJ">
+	<section class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+		<div class="mx-auto max-w-2xl mb-6">
+			<h1 class="text-2xl sm:text-3xl font-bold text-slate-900">Paramètres</h1>
+			<p class="mt-1.5 text-sm text-slate-600">
+				Gérez les options et la sécurité de votre compte EVENTRIP-ABJ.
+			</p>
+		</div>
+		<SettingsPage client:load />
+	</section>
+</Layout>

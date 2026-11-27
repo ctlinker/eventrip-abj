@@ -10,7 +10,9 @@ import {
 	Menu,
 	X,
 	MessageCircle,
-	KeyRound,
+	Settings,
+	User,
+	ChevronDown,
 } from 'lucide-preact';
 import { apiFetch, type ApiUser } from '../lib/api';
 import { disableWebPush, disconnectRealtime, subscribeRealtime } from '../lib/realtime';
@@ -38,6 +40,7 @@ export default function Navbar({
 	const [loaded, setLoaded] = useState(ssrResolved);
 	const [pendingProofCount, setPendingProofCount] = useState(0);
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+	const [accountMenuOpen, setAccountMenuOpen] = useState(false);
 	const headerRef = useRef<HTMLElement>(null);
 
 	const whatsappDigits = contactNum.replace(/\D/g, '');
@@ -101,13 +104,17 @@ export default function Navbar({
 	}, [user, loadPendingProofCount]);
 
 	useEffect(() => {
-		if (!mobileMenuOpen) return;
+		if (!mobileMenuOpen && !accountMenuOpen) return;
 		const onKey = (e: KeyboardEvent) => {
-			if (e.key === 'Escape') setMobileMenuOpen(false);
+			if (e.key === 'Escape') {
+				setMobileMenuOpen(false);
+				setAccountMenuOpen(false);
+			}
 		};
 		const onOutsideClick = (e: MouseEvent) => {
 			if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
 				setMobileMenuOpen(false);
+				setAccountMenuOpen(false);
 			}
 		};
 		document.addEventListener('keydown', onKey);
@@ -116,10 +123,11 @@ export default function Navbar({
 			document.removeEventListener('keydown', onKey);
 			document.removeEventListener('mousedown', onOutsideClick);
 		};
-	}, [mobileMenuOpen]);
+	}, [mobileMenuOpen, accountMenuOpen]);
 
 	async function handleLogout() {
 		setMobileMenuOpen(false);
+		setAccountMenuOpen(false);
 		await disableWebPush(false);
 		disconnectRealtime();
 		await apiFetch('/api/auth/sign-out', { method: 'POST', body: '{}' }).catch(() => {});
@@ -239,32 +247,66 @@ export default function Navbar({
 					)}
 
 					{user && (
-						<div class="ml-1 flex items-center gap-2">
-							<span class="hidden lg:inline text-xs font-semibold text-slate-500">
-								{user.name.split(' ')[0]}
-							</span>
-							<a
-								href="/change-password"
-								title="Changer mon mot de passe"
-								aria-label="Changer mon mot de passe"
-								class={`inline-flex items-center justify-center rounded-xl border p-2 text-sm font-semibold transition-colors ${
-									currentPath === '/change-password'
-										? 'border-brand-200 bg-brand-50 text-brand-700'
-										: 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 hover:text-navy-950'
-								}`}
-							>
-								<KeyRound class="h-4 w-4" />
-							</a>
+						<div class="relative ml-1">
 							<button
 								type="button"
-								onClick={handleLogout}
-								title="Se déconnecter"
-								aria-label="Se déconnecter"
-								class="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-colors cursor-pointer"
+								onClick={() => setAccountMenuOpen((v) => !v)}
+								aria-expanded={accountMenuOpen}
+								aria-haspopup="menu"
+								aria-label="Menu du compte"
+								class={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ${
+									accountMenuOpen || currentPath === '/settings'
+										? 'border-brand-300 bg-brand-50 text-brand-800'
+										: 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:text-navy-950'
+								}`}
 							>
-								<LogOut class="h-4 w-4" />
-								<span class="hidden lg:inline">Déconnexion</span>
+								<User class="h-4 w-4 text-brand-600" />
+								<span class="hidden lg:inline">{user.name.split(' ')[0]}</span>
+								<ChevronDown
+									class={`h-3.5 w-3.5 text-slate-400 transition-transform ${
+										accountMenuOpen ? 'rotate-180' : ''
+									}`}
+								/>
 							</button>
+
+							{accountMenuOpen && (
+								<div
+									role="menu"
+									aria-label="Options du compte"
+									class="absolute right-0 mt-2 w-60 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-lg z-50"
+								>
+									<div class="px-3 py-2 border-b border-slate-100 mb-1">
+										<p class="text-xs font-bold text-navy-950 truncate">{user.name}</p>
+										<p class="text-[11px] text-slate-500 truncate">{user.email}</p>
+									</div>
+
+									<a
+										href="/settings"
+										role="menuitem"
+										onClick={() => setAccountMenuOpen(false)}
+										class={`flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+											currentPath === '/settings'
+												? 'bg-brand-50 text-brand-700'
+												: 'text-slate-700 hover:bg-slate-100/80 hover:text-navy-950'
+										}`}
+									>
+										<Settings class="h-4 w-4 text-slate-500" />
+										<span>Paramètres</span>
+									</a>
+
+									<div class="my-1 border-t border-slate-100" />
+
+									<button
+										type="button"
+										role="menuitem"
+										onClick={handleLogout}
+										class="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+									>
+										<LogOut class="h-4 w-4" />
+										<span>Déconnexion</span>
+									</button>
+								</div>
+							)}
 						</div>
 					)}
 				</nav>
@@ -350,10 +392,10 @@ export default function Navbar({
 										<span>Mes billets</span>
 									</span>
 								</a>
-								<a href="/change-password" onClick={() => setMobileMenuOpen(false)} class={mobileLinkCls('/change-password', true)}>
+								<a href="/settings" onClick={() => setMobileMenuOpen(false)} class={mobileLinkCls('/settings', true)}>
 									<span class="flex items-center gap-2.5">
-										<KeyRound class="h-4 w-4 text-brand-600" />
-										<span>Mot de passe</span>
+										<Settings class="h-4 w-4 text-brand-600" />
+										<span>Paramètres</span>
 									</span>
 								</a>
 							</>
