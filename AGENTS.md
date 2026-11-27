@@ -6,16 +6,20 @@ Application web de billetterie événementielle et de gestion de convois de tran
 
 * **Cahier des charges fonctionnel** : `dev/SPEC.md`
 * **Spécification technique & architecture** : `dev/TECH_SPEC.md`
+* **État fonctionnel courant & Changelog** : `dev/STATE.md`, `CHANGELOG.md`
 * **Guides par workspace** :
   * `packages/db/AGENTS.md` (D1, Kysely, Better Auth, migrations)
   * `workers/api/AGENTS.md` (Cloudflare Workers, Wrangler, Local Explorer)
+  * `workers/mail/AGENTS.md` (Worker d'envoi d'emails Resend & quotas D1)
   * `workers/web/AGENTS.md` (Astro, Preact, Tailwind CSS)
 
 ## Structure du monorepo (`bun` workspaces)
 
 * `packages/db` : Schéma D1 (`migrations/*.sql`), client Kysely (`getDB`), Better Auth (`getAuth`), types générés (`src/generated_types.ts`) et helpers de rôles/permissions (`src/types.ts`).
 * `packages/utils` : Utilitaires partagés de gestion d'erreurs (`tryCatch`, `tryCatchSync`, `Result<T, E>`, `isUniqueConstraintError`, `getErrorMessage`).
-* `workers/api` : API REST Hono (`src/index.ts`), middlewares d'authentification/permissions (`src/middleware/auth.ts`), stockage R2 (`UPLOADS`) et Cron Trigger (`*/5 * * * *`).
+* `workers/api` : API REST Hono (`src/index.ts`), middlewares d'authentification/permissions (`src/middleware/auth.ts`), stockage R2 (`UPLOADS`), Service Bindings (`WEB_PUSH`, `MAIL`) et Cron Trigger (`*/5 * * * *`).
+* `workers/mail` : Envoi d'emails transactionnels via Resend (`noreply@eventrip-abj.com`), contrôle des quotas journalier/mensuel, cooldown par destinataire et journalisation `mail_logs` sur D1.
+* `workers/web-push` : Notifications temps réel WebSocket (Durable Object `UserRealtimeHub`) et consommateur Queue Web Push (`push-notifications`).
 * `workers/web` : Frontend Astro SSR + îlots Preact + Tailwind CSS v4 déployé sur `@astrojs/cloudflare`.
 
 ## Conventions Cloudflare Workers
