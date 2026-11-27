@@ -6,6 +6,7 @@ interface Props {
 	alt: string;
 	aspectClass?: string;
 	href?: string;
+	priority?: boolean;
 }
 
 export default function EventImageCarousel({
@@ -13,6 +14,7 @@ export default function EventImageCarousel({
 	alt,
 	aspectClass = 'aspect-[16/10]',
 	href,
+	priority = false,
 }: Props) {
 	const [index, setIndex] = useState(0);
 
@@ -50,16 +52,20 @@ export default function EventImageCarousel({
 			class="flex h-full w-full transition-transform duration-300 ease-out"
 			style={{ transform: `translateX(-${safeIndex * 100}%)` }}
 		>
-			{urls.map((url, idx) => (
-				<img
-					key={url}
-					src={url}
-					alt={`${alt} (${idx + 1}/${urls.length})`}
-					loading="lazy"
-					decoding="async"
-					class="h-full w-full shrink-0 object-cover"
-				/>
-			))}
+			{urls.map((url, idx) => {
+				const isLcpHero = priority && idx === 0;
+				return (
+					<img
+						key={url}
+						src={url}
+						alt={`${alt} (${idx + 1}/${urls.length})`}
+						loading={isLcpHero ? 'eager' : 'lazy'}
+						decoding={isLcpHero ? 'sync' : 'async'}
+						fetchpriority={isLcpHero ? 'high' : undefined}
+						class="h-full w-full shrink-0 object-cover"
+					/>
+				);
+			})}
 		</div>
 	);
 

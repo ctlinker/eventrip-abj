@@ -1,15 +1,129 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import EventCheckout from '../../components/EventCheckout';
+import { getEventPosterUrls } from '../../lib/api';
+import {
+	buildBreadcrumbJsonLd,
+	buildEventJsonLd,
+	buildEventMetaDescription,
+} from '../../lib/seo';
+import {
+	fetchEventBySlugSSR,
+	fetchSessionUserSSR,
+	getSiteOrigin,
+} from '../../lib/ssr';
 
-const { slug } = Astro.params;
+const { slug = '' } = Astro.params;
+const siteOrigin = getSiteOrigin(Astro.url);
+
+const [eventRes, sessionRes] = await Promise.all([
+	fetchEventBySlugSSR(slug, Astro.request),
+	fetchSessionUserSSR(Astro.request),
+]);
+
+if (eventRes.notFound) {
+	Astro.response.status = 404;
+}
+
+const event = eventRes.event;
+const posterUrls = event ? getEventPosterUrls(event) : [];
+const primaryPoster = posterUrls[0] || null;
+
+const pageTitle = eventRes.notFound
+	? 'Événement introuvable — EVENTRIP-ABJ'
+	: event
+		? `${event.title} — Billet & Convoi A/R (${event.venue}) | EVENTRIP-ABJ`
+		: 'Détail événement — EVENTRIP-ABJ';
+
+const pageDescription = event
+	? buildEventMetaDescription(event)
+	: "Consultez les détails de l'événement et réservez votre billet avec transport aller-retour en Côte d'Ivoire.";
+
+const breadcrumbItems = event
+	? [
+			{ name: 'Accueil', path: '/' },
+			...(event.category_name && event.category_slug
+				? [{ name: event.category_name, path: `/categories/${event.category_slug}` }]
+				: []),
+			{ name: event.title, path: `/events/${event.slug}` },
+		]
+	: [];
+
+const jsonLd = event
+	? [
+			buildEventJsonLd({ event, siteOrigin }),
+			buildBreadcrumbJsonLd(breadcrumbItems, siteOrigin),
+		]
+	: undefined;
 ---
 
-<Layout title="Détail événement — EVENTRIP-ABJ">
+<Layout
+	title={pageTitle}
+	description={pageDescription}
+	canonicalPath={event ? `/events/${event.slug}` : `/events/${slug}`}
+	ogImage={primaryPoster}
+	noindex={eventRes.notFound}
+	jsonLd={jsonLd}
+>
 	<section class="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-		<a href="/" class="inline-block text-sm font-medium text-green-700 hover:underline mb-6">
-			← Retour aux événements
-		</a>
-		<EventCheckout slug={slug || ''} client:load />
+		{
+			eventRes.notFound ? (
+				<div class="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-slate-50/70 p-8 text-center">
+					<p class="text-xs font-extrabold uppercase tracking-wider text-brand-700">
+						Erreur 404
+					</p>
+					<h1 class="mt-2 text-2xl font-black text-slate-950">
+						Événement introuvable
+					</h1>
+					<p class="mt-2 text-sm text-slate-600">
+						Cet événement n’existe pas ou n’est plus publié. Découvrez les prochaines sorties disponibles à l’affiche.
+					</p>
+					<a
+						href="/"
+						class="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors"
+					>
+						Voir les événements à l’affiche
+					</a>
+				</div>
+			) : (
+				<>
+					<nav
+						aria-label="Fil d'Ariane"
+						class="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-500"
+					>
+						<a href="/" class="font-medium text-brand-700 hover:underline">
+							← Événements
+						</a>
+						{event?.category_name && event?.category_slug && (
+							<>
+								<span aria-hidden="true">/</span>
+								<a
+									href={`/categories/${event.category_slug}`}
+									class="font-medium text-slate-700 hover:text-brand-700 hover:underline"
+								>
+									{event.category_name}
+								</a>
+							</>
+						)}
+						{event && (
+							<>
+								<span aria-hidden="true">/</span>
+								<span class="truncate font-semibold text-slate-900 max-w-xs sm:max-w-md">
+									{event.title}
+								</span>
+							</>
+						)}
+					</nav>
+					<EventCheckout
+						slug={slug}
+						initialEvent={event}
+						initialAuthenticated={
+							sessionRes.ssrResolved ? Boolean(sessionRes.user) : null
+						}
+						client:load
+					/>
+				</>
+			)
+		}
 	</section>
 </Layout>

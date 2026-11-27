@@ -5,6 +5,19 @@ Le format suit les conventions [Keep a Changelog](https://keepachangelog.com/fr/
 
 ---
 
+## [1.4.0] — 2026-11-27
+
+### Ajouté
+- **Pré-rendu SSR, SEO Google Rich Results & Open Graph (`workers/web`)** :
+  - Nouveaux modules `workers/web/src/lib/ssr.ts` et `workers/web/src/lib/seo.ts` interrogeant `workers/api` côté serveur via le Service Binding `env.API` (avec variable optionnelle `SITE_URL` et normalisation canonique `https://` hors localhost).
+  - Pré-rendu SSR complet sans squelette vide sur `/`, `/events/[slug]`, `/convois/[commune]` et `/categories/[slug]` dans `EventsCatalog.tsx` et `EventCheckout.tsx`, et retour d'un vrai statut `HTTP 404` + `noindex` pour les slugs inexistants (suppression des *Soft 404*).
+  - Enrichissement de `Layout.astro` : balises `<meta name="description">`, `<link rel="canonical">`, Open Graph `fr_CI` (aperçus WhatsApp/Facebook), Twitter Cards, préchargement de `Satoshi-Variable.woff2` et maillage interne en pied de page vers les communes d'Abidjan.
+  - Injection sécurisée de données structurées JSON-LD Schema.org : `Organization`, `WebSite` (`SearchAction` vers `/?q=...`), `ItemList`, `Event` (`priceCurrency: "XOF"`, `InStock`/`SoldOut`, lieu en Côte d'Ivoire) et `BreadcrumbList`.
+  - Endpoints dynamiques `GET /sitemap.xml` (accueil, événements publiés avec `<lastmod>`, communes et catégories) et `GET /robots.txt` (autorisant `/api/media/posters/` pour Googlebot-Image et bloquant `/api/`, `/admin/`, `/orders/`, etc.), complétés par `noindex, nofollow` sur toutes les pages privées, d'authentification et d'administration.
+  - Nouvelles pages SEO locales `/convois/[commune]` et `/categories/[slug]`, et optimisation LCP (`loading="eager"` + `fetchpriority="high"`) sur la première affiche dans `EventImageCarousel.tsx`.
+
+---
+
 ## [1.3.0] — 2026-11-27
 
 ### Ajouté

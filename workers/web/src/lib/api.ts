@@ -91,10 +91,15 @@ export interface PublicEvent {
 	poster_keys?: string[];
 	starts_at: string;
 	ends_at: string | null;
+	sales_start_at?: string | null;
+	sales_end_at?: string | null;
+	created_at?: string;
+	updated_at?: string;
 	venue: string;
 	price_xof: number;
 	category_id?: string | null;
 	category_name?: string | null;
+	category_slug?: string | null;
 	extra_info: string | null;
 	wave_payment_url: string | null;
 	wishlisted?: boolean;

@@ -1,8 +1,39 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import EventsCatalog from '../components/EventsCatalog';
+import { DEFAULT_SITE_DESCRIPTION, buildHomeJsonLd } from '../lib/seo';
+import { fetchCatalogSSR, getContactNumber, getSiteOrigin } from '../lib/ssr';
+
+const catalog = await fetchCatalogSSR(Astro.request);
+const siteOrigin = getSiteOrigin(Astro.url);
+const contactNum = getContactNumber();
+
+const initialSearchQuery = Astro.url.searchParams.get('q')?.trim() || '';
+const initialCommune = Astro.url.searchParams.get('commune')?.trim() || '';
+const initialSelectedCategoryId = Astro.url.searchParams.get('category_id')?.trim() || '';
+
+const homeJsonLd = buildHomeJsonLd({
+	siteOrigin,
+	contactNum,
+	events: catalog.events,
+});
 ---
 
-<Layout title="EVENTRIP-ABJ — Événements & Convois en Côte d'Ivoire">
-	<EventsCatalog client:load />
+<Layout
+	title="EVENTRIP-ABJ — Événements, Billets & Convois Aller-Retour en Côte d'Ivoire"
+	description={DEFAULT_SITE_DESCRIPTION}
+	canonicalPath="/"
+	jsonLd={homeJsonLd}
+>
+	<EventsCatalog
+		ssrLoaded={catalog.ok}
+		initialEvents={catalog.events}
+		initialEventCategories={catalog.eventCategories}
+		initialCommunes={catalog.communes}
+		initialWishlistIds={catalog.wishlistIds}
+		initialSearchQuery={initialSearchQuery}
+		initialCommune={initialCommune}
+		initialSelectedCategoryId={initialSelectedCategoryId}
+		client:load
+	/>
 </Layout>

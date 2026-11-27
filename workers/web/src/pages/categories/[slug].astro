@@ -1,0 +1,152 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import EventsCatalog from '../../components/EventsCatalog';
+import { buildBreadcrumbJsonLd, truncateMetaDescription } from '../../lib/seo';
+import { fetchCatalogSSR, getSiteOrigin, toAbsoluteUrl } from '../../lib/ssr';
+
+const { slug = '' } = Astro.params;
+const siteOrigin = getSiteOrigin(Astro.url);
+const catalog = await fetchCatalogSSR(Astro.request);
+
+const normalizedSlug = slug.trim().toLowerCase();
+const matchedCategory =
+	catalog.eventCategories.find((c) => c.slug.toLowerCase() === normalizedSlug) || null;
+
+if (!matchedCategory) {
+	Astro.response.status = 404;
+}
+
+const categoryEvents = matchedCategory
+	? catalog.events.filter((ev) => ev.category_id === matchedCategory.id)
+	: [];
+
+const pageTitle = matchedCategory
+	? `${matchedCategory.name} en Côte d'Ivoire — Billets & Convois A/R | EVENTRIP-ABJ`
+	: 'Catégorie introuvable — EVENTRIP-ABJ';
+
+const pageDescription = matchedCategory
+	? truncateMetaDescription(
+			`Découvrez tous les événements ${matchedCategory.name} en Côte d'Ivoire sur EVENTRIP-ABJ. Réservez votre billet avec convoi aller-retour depuis Abidjan et paiement Wave.`,
+		)
+	: "Parcourez les catégories d'événements disponibles sur EVENTRIP-ABJ.";
+
+const jsonLd = matchedCategory
+	? [
+			buildBreadcrumbJsonLd(
+				[
+					{ name: 'Accueil', path: '/' },
+					{
+						name: matchedCategory.name,
+						path: `/categories/${matchedCategory.slug}`,
+					},
+				],
+				siteOrigin,
+			),
+			...(categoryEvents.length > 0
+				? [
+						{
+							'@context': 'https://schema.org',
+							'@type': 'ItemList',
+							name: `${matchedCategory.name} — Événements en Côte d'Ivoire`,
+							itemListElement: categoryEvents.slice(0, 20).map((ev, idx) => ({
+								'@type': 'ListItem',
+								position: idx + 1,
+								name: ev.title,
+								url: toAbsoluteUrl(`/events/${ev.slug}`, siteOrigin),
+							})),
+						},
+					]
+				: []),
+		]
+	: undefined;
+---
+
+<Layout
+	title={pageTitle}
+	description={pageDescription}
+	canonicalPath={
+		matchedCategory ? `/categories/${matchedCategory.slug}` : `/categories/${slug}`
+	}
+	noindex={!matchedCategory}
+	jsonLd={jsonLd}
+>
+	{
+		!matchedCategory ? (
+			<section class="mx-auto max-w-4xl px-4 py-12 sm:px-6 text-center">
+				<p class="text-xs font-extrabold uppercase tracking-wider text-brand-700">
+					Erreur 404
+				</p>
+				<h1 class="mt-2 text-2xl sm:text-3xl font-black text-slate-950">
+					Catégorie introuvable
+				</h1>
+				<p class="mt-2 text-sm text-slate-600">
+					Cette catégorie n’existe pas ou n’est plus disponible.
+				</p>
+				<a
+					href="/"
+					class="mt-6 inline-flex items-center justify-center rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 transition-colors"
+				>
+					Retour à tous les événements
+				</a>
+			</section>
+		) : (
+			<>
+				<section class="relative overflow-hidden border-b border-slate-200/80 bg-slate-50/70">
+					<div class="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+						<nav
+							aria-label="Fil d'Ariane"
+							class="mb-4 flex items-center gap-2 text-xs font-medium text-slate-500"
+						>
+							<a href="/" class="text-brand-700 hover:underline">
+								Accueil
+							</a>
+							<span aria-hidden="true">/</span>
+							<span class="font-semibold text-slate-900">
+								{matchedCategory.name}
+							</span>
+						</nav>
+
+						<h1 class="text-2xl sm:text-4xl font-black tracking-tight text-slate-950">
+							{matchedCategory.name} en Côte d’Ivoire —{' '}
+							<span class="text-brand-600">Billets &amp; Convois A/R</span>
+						</h1>
+						<p class="mt-3 max-w-3xl text-sm sm:text-base text-slate-600 leading-relaxed">
+							Retrouvez les prochaines sorties <strong class="text-slate-900">{matchedCategory.name}</strong> à Abidjan et en Côte d’Ivoire avec transport aller-retour organisé depuis votre commune.
+						</p>
+
+						{catalog.eventCategories.length > 1 && (
+							<div class="mt-6 flex flex-wrap items-center gap-1.5">
+								<span class="mr-1 text-xs font-bold text-slate-500">
+									Autres catégories :
+								</span>
+								{catalog.eventCategories
+									.filter((c) => c.id !== matchedCategory.id)
+									.map((c) => (
+										<a
+											href={`/categories/${c.slug}`}
+											class="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 hover:border-brand-500 hover:text-brand-700 transition-colors"
+										>
+											{c.name}
+										</a>
+									))}
+							</div>
+						)}
+					</div>
+				</section>
+
+				<EventsCatalog
+					showHero={false}
+					ssrLoaded={catalog.ok}
+					initialEvents={catalog.events}
+					initialEventCategories={catalog.eventCategories}
+					initialCommunes={catalog.communes}
+					initialWishlistIds={catalog.wishlistIds}
+					initialSelectedCategoryId={matchedCategory.id}
+					sectionTitle={`Événements : ${matchedCategory.name}`}
+					sectionSubtitle={`${categoryEvents.length} événement(s) publié(s) dans la catégorie ${matchedCategory.name}`}
+					client:load
+				/>
+			</>
+		)
+	}
+</Layout>

@@ -13,65 +13,92 @@ import EventImageCarousel from './EventImageCarousel';
 
 interface Props {
 	slug: string;
+	initialEvent?: PublicEvent | null;
+	initialAuthenticated?: boolean | null;
 }
 
 const DRAFT_ORDER_KEY = 'eventrip_draft_order';
 
-export default function EventCheckout({ slug }: Props) {
-	const [event, setEvent] = useState<PublicEvent | null>(null);
-	const [loading, setLoading] = useState(true);
+function pickDefaultConvoyId(ev: PublicEvent | null | undefined, commune = ''): string {
+	if (!ev || ev.convoys.length === 0) return '';
+	const sorted = sortConvoysByCommune(ev.convoys, commune);
+	const firstAvailable = sorted.find((cv) => cv.remaining > 0) || sorted[0];
+	return firstAvailable ? firstAvailable.id : '';
+}
+
+export default function EventCheckout({
+	slug,
+	initialEvent = null,
+	initialAuthenticated = null,
+}: Props) {
+	const [event, setEvent] = useState<PublicEvent | null>(initialEvent);
+	const [loading, setLoading] = useState(!initialEvent);
 	const [error, setError] = useState<string | null>(null);
 	const [preferredCommune, setPreferredCommune] = useState('');
-	const [selectedConvoyId, setSelectedConvoyId] = useState<string>('');
+	const [selectedConvoyId, setSelectedConvoyId] = useState<string>(() =>
+		pickDefaultConvoyId(initialEvent),
+	);
 	const [quantity, setQuantity] = useState(1);
 	const [submitting, setSubmitting] = useState(false);
-	const [wishlisted, setWishlisted] = useState(false);
+	const [wishlisted, setWishlisted] = useState(Boolean(initialEvent?.wishlisted));
 	const [togglingWishlist, setTogglingWishlist] = useState(false);
-	const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+	const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(initialAuthenticated);
 
 	useEffect(() => {
 		const savedCommune = localStorage.getItem('eventrip_commune') || '';
 		setPreferredCommune(savedCommune);
-		apiFetch<{ user?: { id: string } } | null>('/api/auth/get-session')
-			.then((res) => setIsAuthenticated(Boolean(res?.user)))
-			.catch(() => setIsAuthenticated(false));
+
+		if (initialAuthenticated === null) {
+			apiFetch<{ user?: { id: string } } | null>('/api/auth/get-session')
+				.then((res) => setIsAuthenticated(Boolean(res?.user)))
+				.catch(() => setIsAuthenticated(false));
+		}
+
+		function applyConvoySelection(ev: PublicEvent) {
+			const sorted = sortConvoysByCommune(ev.convoys, savedCommune);
+			try {
+				const rawDraft = sessionStorage.getItem(DRAFT_ORDER_KEY);
+				if (rawDraft) {
+					const draft = JSON.parse(rawDraft) as {
+						slug?: string;
+						convoyId?: string;
+						quantity?: number;
+					};
+					if (draft.slug === slug && draft.convoyId) {
+						const exists = sorted.find(
+							(cv) => cv.id === draft.convoyId && cv.remaining > 0,
+						);
+						if (exists) {
+							setSelectedConvoyId(exists.id);
+							if (draft.quantity && draft.quantity >= 1) {
+								setQuantity(Math.min(draft.quantity, exists.remaining));
+							}
+							sessionStorage.removeItem(DRAFT_ORDER_KEY);
+							return;
+						}
+					}
+				}
+			} catch {}
+
+			const firstAvailable = sorted.find((cv) => cv.remaining > 0) || sorted[0];
+			if (firstAvailable) setSelectedConvoyId(firstAvailable.id);
+		}
+
+		if (initialEvent && initialEvent.slug === slug) {
+			applyConvoySelection(initialEvent);
+			return;
+		}
+
+		setLoading(true);
 		apiFetch<{ event: PublicEvent }>(`/api/events/${slug}`)
 			.then((data) => {
 				setEvent(data.event);
 				setWishlisted(Boolean(data.event.wishlisted));
-				const sorted = sortConvoysByCommune(data.event.convoys, savedCommune);
-
-				// Restaurer le panier si l'utilisateur revient de /auth
-				try {
-					const rawDraft = sessionStorage.getItem(DRAFT_ORDER_KEY);
-					if (rawDraft) {
-						const draft = JSON.parse(rawDraft) as {
-							slug?: string;
-							convoyId?: string;
-							quantity?: number;
-						};
-						if (draft.slug === slug && draft.convoyId) {
-							const exists = sorted.find(
-								(cv) => cv.id === draft.convoyId && cv.remaining > 0,
-							);
-							if (exists) {
-								setSelectedConvoyId(exists.id);
-								if (draft.quantity && draft.quantity >= 1) {
-									setQuantity(Math.min(draft.quantity, exists.remaining));
-								}
-								sessionStorage.removeItem(DRAFT_ORDER_KEY);
-								return;
-							}
-						}
-					}
-				} catch {}
-
-				const firstAvailable = sorted.find((cv) => cv.remaining > 0) || sorted[0];
-				if (firstAvailable) setSelectedConvoyId(firstAvailable.id);
+				applyConvoySelection(data.event);
 			})
 			.catch((err) => setError(err.message))
 			.finally(() => setLoading(false));
-	}, [slug]);
+	}, [slug, initialEvent, initialAuthenticated]);
 
 	if (loading) {
 		return <div class="h-96 rounded-2xl border border-slate-200 bg-slate-50 animate-pulse" />;
@@ -193,6 +220,7 @@ export default function EventCheckout({ slug }: Props) {
 									urls={posterUrls}
 									alt={event.title}
 									aspectClass="aspect-[16/9]"
+									priority={true}
 								/>
 							)}
 							<div class="p-6 sm:p-8">

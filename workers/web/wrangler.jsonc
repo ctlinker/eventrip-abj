@@ -12,7 +12,8 @@
 		"enabled": true
 	},
 	"vars": {
-		"CONTACT_NUM": "+2250545990099"
+		"CONTACT_NUM": "+2250545990099",
+		"SITE_URL": ""
 	},
 	"services": [
 		{

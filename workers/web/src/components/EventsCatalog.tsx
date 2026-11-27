@@ -15,21 +15,56 @@ import {
 import EventImageCarousel from './EventImageCarousel';
 import CartoonShuttle from './CartoonShuttle';
 
-export default function EventsCatalog() {
-	const [events, setEvents] = useState<PublicEvent[]>([]);
-	const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
-	const [communeOptions, setCommuneOptions] = useState<string[]>([...ABIDJAN_COMMUNES]);
-	const [searchQuery, setSearchQuery] = useState('');
-	const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
-	const [commune, setCommune] = useState('');
-	const [loading, setLoading] = useState(true);
+interface Props {
+	ssrLoaded?: boolean;
+	initialEvents?: PublicEvent[];
+	initialEventCategories?: EventCategory[];
+	initialCommunes?: CommuneItem[];
+	initialWishlistIds?: string[];
+	initialSearchQuery?: string;
+	initialCommune?: string;
+	initialSelectedCategoryId?: string;
+	showHero?: boolean;
+	sectionTitle?: string;
+	sectionSubtitle?: string;
+}
+
+export default function EventsCatalog({
+	ssrLoaded = false,
+	initialEvents = [],
+	initialEventCategories = [],
+	initialCommunes = [],
+	initialWishlistIds = [],
+	initialSearchQuery = '',
+	initialCommune = '',
+	initialSelectedCategoryId = '',
+	showHero = true,
+	sectionTitle = 'Événements à l’affiche',
+	sectionSubtitle,
+}: Props) {
+	const [events, setEvents] = useState<PublicEvent[]>(initialEvents);
+	const [eventCategories, setEventCategories] = useState<EventCategory[]>(initialEventCategories);
+	const [communeOptions, setCommuneOptions] = useState<string[]>(
+		initialCommunes.length > 0 ? initialCommunes.map((c) => c.name) : [...ABIDJAN_COMMUNES],
+	);
+	const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+	const [selectedCategoryId, setSelectedCategoryId] = useState<string>(initialSelectedCategoryId);
+	const [commune, setCommune] = useState(initialCommune);
+	const [loading, setLoading] = useState(!ssrLoaded);
 	const [error, setError] = useState<string | null>(null);
-	const [wishlistIds, setWishlistIds] = useState<Set<string>>(new Set());
+	const [wishlistIds, setWishlistIds] = useState<Set<string>>(
+		() => new Set(initialWishlistIds),
+	);
 	const [togglingWishlistId, setTogglingWishlistId] = useState<string | null>(null);
 
 	useEffect(() => {
-		const saved = localStorage.getItem('eventrip_commune') || '';
-		setCommune(saved);
+		if (!initialCommune) {
+			const saved = localStorage.getItem('eventrip_commune') || '';
+			if (saved) setCommune(saved);
+		}
+		if (ssrLoaded) {
+			return;
+		}
 		apiFetch<{
 			events: PublicEvent[];
 			event_categories?: EventCategory[];
@@ -46,7 +81,7 @@ export default function EventsCatalog() {
 			})
 			.catch((err) => setError(err.message))
 			.finally(() => setLoading(false));
-	}, []);
+	}, [ssrLoaded, initialCommune]);
 
 	async function handleToggleWishlist(e: Event, eventId: string) {
 		e.preventDefault();
@@ -117,6 +152,7 @@ export default function EventsCatalog() {
 	return (
 		<div>
 			{/* Hero 2 colonnes (style 1.jpg) avec sphères hachurées (style 2.jpg / guide.md) */}
+			{showHero && (
 			<section class="relative overflow-hidden bg-white">
 				{/* Sphères hachurées décoratives */}
 				<div
@@ -225,18 +261,21 @@ export default function EventsCatalog() {
 				{/* Séparateur bande hachurée diagonale (guide.md §1) */}
 				<div class="h-3 w-full border-y border-slate-200/70 bg-hatched-slate" aria-hidden="true" />
 			</section>
+			)}
 
 			{/* Section Catalogue d'événements */}
 			<section id="events-grid" class="mx-auto max-w-6xl px-4 pt-12 pb-6 sm:px-6">
 				<div class="mb-8 flex flex-wrap items-center justify-between gap-4">
 					<div>
 						<h2 class="text-2xl font-extrabold tracking-tight text-slate-950">
-							Événements à l’affiche
+							{sectionTitle}
 						</h2>
 						<p class="mt-0.5 text-sm text-slate-500">
-							{commune
-								? `Départs priorisés depuis ${commune}`
-								: 'Sélectionnez votre commune pour prioriser les départs les plus proches'}
+							{sectionSubtitle
+								? sectionSubtitle
+								: commune
+									? `Départs priorisés depuis ${commune}`
+									: 'Sélectionnez votre commune pour prioriser les départs les plus proches'}
 						</p>
 					</div>
 

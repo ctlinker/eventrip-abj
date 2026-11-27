@@ -1,44 +1,68 @@
 ---
 import '../styles/global.css';
-import { env } from 'cloudflare:workers';
-import { tryCatch } from 'utils';
 import Navbar from '../components/Navbar';
-import type { ApiUser } from '../lib/api';
+import {
+	DEFAULT_SITE_DESCRIPTION,
+	SITE_NAME,
+	serializeJsonLd,
+} from '../lib/seo';
+import {
+	fetchSessionUserSSR,
+	getContactNumber,
+	getSiteOrigin,
+	toAbsoluteUrl,
+} from '../lib/ssr';
 
 interface Props {
 	title?: string;
+	description?: string;
+	canonicalPath?: string;
+	ogImage?: string | null;
+	ogType?: 'website' | 'article';
+	noindex?: boolean;
+	jsonLd?: Record<string, unknown> | Record<string, unknown>[];
 }
 
-const { title = 'EVENTRIP-ABJ — Billetterie & Convois' } = Astro.props;
+const {
+	title = 'EVENTRIP-ABJ — Billetterie & Convois en Côte d’Ivoire',
+	description = DEFAULT_SITE_DESCRIPTION,
+	canonicalPath,
+	ogImage,
+	ogType = 'website',
+	noindex = false,
+	jsonLd,
+} = Astro.props;
+
 const currentPath = Astro.url.pathname;
+const siteOrigin = getSiteOrigin(Astro.url);
+const contactNum = getContactNumber();
 
-let initialUser: ApiUser | null = null;
-let ssrResolved = false;
+const canonicalUrl = toAbsoluteUrl(canonicalPath ?? currentPath, siteOrigin);
+const resolvedOgImage = toAbsoluteUrl(ogImage || '/icon-512.png', siteOrigin);
+const robotsContent = noindex
+	? 'noindex, nofollow'
+	: 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
 
-const cfEnv = env as Partial<Env> & { CONTACT_NUM?: string };
-const contactNum = cfEnv?.CONTACT_NUM || '+2250545990099';
-const api = cfEnv?.API;
-if (api) {
-	const cookie = Astro.request.headers.get('cookie');
-	if (!cookie) {
-		ssrResolved = true;
-	} else {
-		const res = await tryCatch(
-			api.fetch(
-				new Request('http://internal/api/auth/get-session', {
-					headers: { cookie },
-				}),
-			),
-		);
-		if (res.ok && res.data.ok) {
-			const json = await tryCatch(res.data.json() as Promise<{ user?: ApiUser } | null>);
-			if (json.ok) {
-				initialUser = json.data?.user ?? null;
-				ssrResolved = true;
-			}
-		}
-	}
-}
+const jsonLdSchemas = jsonLd
+	? Array.isArray(jsonLd)
+		? jsonLd
+		: [jsonLd]
+	: [];
+
+const { user: initialUser, ssrResolved } = await fetchSessionUserSSR(Astro.request);
+
+const footerCommunes = [
+	{ name: 'Cocody', slug: 'cocody' },
+	{ name: 'Yopougon', slug: 'yopougon' },
+	{ name: 'Marcory', slug: 'marcory' },
+	{ name: 'Plateau', slug: 'plateau' },
+	{ name: 'Abobo', slug: 'abobo' },
+	{ name: 'Treichville', slug: 'treichville' },
+	{ name: 'Koumassi', slug: 'koumassi' },
+	{ name: 'Bingerville', slug: 'bingerville' },
+	{ name: 'Port-Bouët', slug: 'port-bouet' },
+	{ name: 'Adjamé', slug: 'adjame' },
+];
 ---
 
 <!doctype html>
@@ -46,16 +70,56 @@ if (api) {
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{title}</title>
+		<meta name="description" content={description} />
+		<meta name="robots" content={robotsContent} />
+		<link rel="canonical" href={canonicalUrl} />
+
+		<!-- Open Graph / WhatsApp / Facebook -->
+		<meta property="og:site_name" content={SITE_NAME} />
+		<meta property="og:locale" content="fr_CI" />
+		<meta property="og:type" content={ogType} />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:url" content={canonicalUrl} />
+		<meta property="og:image" content={resolvedOgImage} />
+		<meta property="og:image:alt" content={title} />
+
+		<!-- Twitter / X Cards -->
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={title} />
+		<meta name="twitter:description" content={description} />
+		<meta name="twitter:image" content={resolvedOgImage} />
+
+		<!-- PWA & Icônes -->
 		<meta name="theme-color" content="#0e1827" />
 		<meta name="mobile-web-app-capable" content="yes" />
 		<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-		<meta name="apple-mobile-web-app-title" content="EVENTRIP-ABJ" />
+		<meta name="apple-mobile-web-app-title" content={SITE_NAME} />
 		<link rel="manifest" href="/manifest.webmanifest" />
 		<link rel="apple-touch-icon" href="/icon-192.png" />
 		<link rel="icon" type="image/webp" href="/logo.webp" />
 		<link rel="icon" href="/favicon.ico" />
+
+		<!-- Préchargement police principale (LCP / CLS) -->
+		<link
+			rel="preload"
+			href="/satoshi_fonts/WEB/fonts/Satoshi-Variable.woff2"
+			as="font"
+			type="font/woff2"
+			crossorigin
+		/>
 		<link rel="stylesheet" href="/satoshi_fonts/WEB/css/satoshi.css" />
-		<title>{title}</title>
+
+		{
+			jsonLdSchemas.map((schema) => (
+				<script
+					is:inline
+					type="application/ld+json"
+					set:html={serializeJsonLd(schema)}
+				/>
+			))
+		}
 	</head>
 	<body class="min-h-screen bg-white text-navy-950 flex flex-col">
 		<Navbar
@@ -69,24 +133,45 @@ if (api) {
 			<slot />
 		</main>
 		<div class="mt-20 h-3 w-full border-y border-brand-200/70 bg-hatched-gold" aria-hidden="true"></div>
-		<footer class="bg-navy-950 py-8 text-slate-300">
-			<div class="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
-				<div class="flex items-center gap-3">
-					<img
-						src="/logo.webp"
-						alt="ABJ-TRIPEVENT"
-						width="36"
-						height="36"
-						loading="lazy"
-						decoding="async"
-						class="h-9 w-9 rounded-full object-contain shrink-0"
-					/>
-					<p class="font-bold text-white tracking-tight">
-						EVENTRIP<span class="text-brand-300">-ABJ</span>{' '}
-						<span class="font-normal text-slate-400">· Événements &amp; Convois en Côte d'Ivoire</span>
+		<footer class="bg-navy-950 py-10 text-slate-300">
+			<div class="mx-auto max-w-6xl px-4 sm:px-6 space-y-6">
+				<div class="flex flex-col sm:flex-row items-center justify-between gap-4 text-sm">
+					<a href="/" class="flex items-center gap-3 hover:opacity-90 transition-opacity">
+						<img
+							src="/logo.webp"
+							alt="EVENTRIP-ABJ"
+							width="36"
+							height="36"
+							loading="lazy"
+							decoding="async"
+							class="h-9 w-9 rounded-full object-contain shrink-0"
+						/>
+						<p class="font-bold text-white tracking-tight">
+							EVENTRIP<span class="text-brand-300">-ABJ</span>{' '}
+							<span class="font-normal text-slate-400">· Événements &amp; Convois en Côte d'Ivoire</span>
+						</p>
+					</a>
+					<p class="text-slate-400 text-center sm:text-right">
+						Paiements sécurisés Wave · Billets Aller-Retour vérifiés par QR code
 					</p>
 				</div>
-				<p class="text-slate-400">Paiements sécurisés Wave · Billets Aller-Retour vérifiés</p>
+
+				<nav
+					aria-label="Convois par commune d'Abidjan"
+					class="border-t border-navy-800/80 pt-5 flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2 text-xs text-slate-400"
+				>
+					<span class="font-semibold text-slate-300">Départs par commune :</span>
+					{
+						footerCommunes.map((c) => (
+							<a
+								href={`/convois/${c.slug}`}
+								class="hover:text-brand-300 transition-colors"
+							>
+								Convois {c.name}
+							</a>
+						))
+					}
+				</nav>
 			</div>
 		</footer>
 	</body>
