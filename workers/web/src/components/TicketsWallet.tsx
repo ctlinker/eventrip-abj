@@ -162,7 +162,7 @@ async function renderReceiptCanvas(t: WalletTicket): Promise<HTMLCanvasElement |
 
 	ctx.fillStyle = '#ffffff';
 	ctx.font = 'bold 34px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
-	ctx.fillText('EVENTRIP.', 48, 68);
+	ctx.fillText('EVENTRIP-ABJ', 48, 68);
 
 	ctx.font = '500 18px "Satoshi-Variable", "Satoshi-Regular", sans-serif';
 	ctx.fillStyle = '#e3c183';

@@ -158,7 +158,7 @@ export default function Navbar({
 						class="h-10 w-10 rounded-full object-contain drop-shadow-xs transition-transform group-hover:scale-105"
 					/>
 					<span class="whitespace-nowrap text-lg sm:text-xl font-black tracking-tight text-navy-950">
-						EVENTRIP<span class="text-brand-500">.</span>
+						EVENTRIP<span class="text-brand-500">-ABJ</span>
 					</span>
 				</a>
 

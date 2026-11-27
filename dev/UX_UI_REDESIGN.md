@@ -58,7 +58,7 @@
 
 ```text
 +-----------------------------------------------------------------------------------+
-|  [BusIcon] EVENTRIP.            Explorer   Mes commandes   Mes billets   [Sign In]|
+|  [BusIcon] EVENTRIP-ABJ         Explorer   Mes commandes   Mes billets   [Sign In]|
 +-----------------------------------------------------------------------------------+
 |  (sphère hachurée)                                            (sphère hachurée)   |
 |   Votre billet pour la                     ,-----------------------------.         |
@@ -73,7 +73,7 @@
 ```
 
 * **Barre de navigation épurée** :
-  * Logo `EVENTRIP.` (point vert pur + icône navette minimaliste), liens centrés avec état actif souligné/coloré, bouton `Connexion` vert plein à droite (`1.jpg` / `2.jpg`).
+  * Logo `EVENTRIP-ABJ` (accent vert pur + icône navette minimaliste), liens centrés avec état actif souligné/coloré, bouton `Connexion` vert plein à droite (`1.jpg` / `2.jpg`).
 * **Barre de recherche unifiée flottante** (`rounded-2xl bg-white p-2 shadow-lg shadow-slate-200/60 border border-slate-200`) :
   * Segment 1 : Recherche texte (`Titre ou lieu…`).
   * Segment 2 : Sélecteur `Commune de départ` (pré-rempli avec la commune préférée du client).

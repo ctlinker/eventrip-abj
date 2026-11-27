@@ -91,11 +91,11 @@ export function buildPasswordResetEmail(params: { name: string; resetLink: strin
 	const safeName = escapeHtml(params.name?.trim() || 'Client');
 	const safeLink = escapeHtml(params.resetLink);
 
-	const subject = 'Réinitialisation de votre mot de passe — EVENTRIP';
+	const subject = 'Réinitialisation de votre mot de passe — EVENTRIP-ABJ';
 	const text = [
 		`Bonjour ${params.name?.trim() || 'Client'},`,
 		'',
-		'Nous avons reçu une demande de réinitialisation du mot de passe de votre compte EVENTRIP.',
+		'Nous avons reçu une demande de réinitialisation du mot de passe de votre compte EVENTRIP-ABJ.',
 		'Cliquez sur le lien ci-dessous pour choisir un nouveau mot de passe (valable 1 heure) :',
 		params.resetLink,
 		'',
@@ -109,14 +109,14 @@ export function buildPasswordResetEmail(params: { name: string; resetLink: strin
       <tr>
         <td>
           <div style="font-size:20px;font-weight:900;letter-spacing:-0.02em;color:#0f172a;margin-bottom:16px;">
-            EVENTRIP<span style="color:#ea580c;">.</span>
+            EVENTRIP<span style="color:#ea580c;">-ABJ</span>
           </div>
           <h1 style="font-size:18px;font-weight:800;margin:0 0 12px;color:#0f172a;">
             Réinitialisez votre mot de passe
           </h1>
           <p style="font-size:14px;line-height:1.6;color:#475569;margin:0 0 20px;">
             Bonjour <strong>${safeName}</strong>,<br/>
-            Vous avez demandé à réinitialiser le mot de passe de votre compte EVENTRIP. Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe :
+            Vous avez demandé à réinitialiser le mot de passe de votre compte EVENTRIP-ABJ. Cliquez sur le bouton ci-dessous pour définir un nouveau mot de passe :
           </p>
           <div style="margin:24px 0;">
             <a href="${safeLink}" style="display:inline-block;background-color:#ea580c;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:12px 24px;border-radius:12px;">

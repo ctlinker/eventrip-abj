@@ -38,7 +38,7 @@ export default function ForgotPasswordForm() {
 				<div class="rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm text-emerald-800 space-y-1">
 					<p class="font-bold">Vérifiez votre boîte mail</p>
 					<p class="text-xs leading-relaxed">
-						Si un compte EVENTRIP est associé à <strong>{email}</strong>, un lien de réinitialisation
+						Si un compte EVENTRIP-ABJ est associé à <strong>{email}</strong>, un lien de réinitialisation
 						valable 1 heure vient de vous être envoyé. Pensez à vérifier vos courriers indésirables
 						(spams).
 					</p>
