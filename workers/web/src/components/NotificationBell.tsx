@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { Bell, BellRing, CheckCheck, X } from 'lucide-preact';
+import { AlertTriangle, Bell, BellRing, CheckCheck, X } from 'lucide-preact';
 import { apiFetch, formatDate } from '../lib/api';
 import {
 	disableWebPush,
@@ -70,12 +70,17 @@ export default function NotificationBell() {
 				setOpen(false);
 			}
 		};
+		const onKey = (e: KeyboardEvent) => {
+			if (e.key === 'Escape') setOpen(false);
+		};
 		document.addEventListener('mousedown', onDocClick);
+		document.addEventListener('keydown', onKey);
 
 		return () => {
 			unsubPush();
 			unsub();
 			document.removeEventListener('mousedown', onDocClick);
+			document.removeEventListener('keydown', onKey);
 		};
 	}, []);
 
@@ -123,8 +128,16 @@ export default function NotificationBell() {
 			<button
 				type="button"
 				onClick={() => setOpen((v) => !v)}
-				title="Notifications"
-				aria-label="Notifications"
+				title={
+					canOfferPush && !pushEnabled
+						? 'Notifications (alertes push désactivées)'
+						: 'Notifications'
+				}
+				aria-label={
+					canOfferPush && !pushEnabled
+						? 'Notifications — alertes push désactivées'
+						: 'Notifications'
+				}
 				aria-expanded={open}
 				class={`relative inline-flex min-h-11 min-w-11 sm:min-h-0 sm:min-w-0 items-center justify-center rounded-lg p-2.5 sm:px-2.5 sm:py-1.5 text-sm font-semibold transition-colors cursor-pointer ${
 					open
@@ -133,10 +146,18 @@ export default function NotificationBell() {
 				}`}
 			>
 				<Bell class="h-4 w-4" />
-				{unreadCount > 0 && (
+				{unreadCount > 0 ? (
 					<span class="absolute top-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-extrabold text-white">
 						{unreadCount > 9 ? '9+' : unreadCount}
 					</span>
+				) : (
+					canOfferPush &&
+					!pushEnabled && (
+						<span
+							aria-hidden="true"
+							class="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white"
+						/>
+					)
 				)}
 			</button>
 
@@ -167,13 +188,36 @@ export default function NotificationBell() {
 					</div>
 
 					{canOfferPush && (
-						<div class="border-b border-slate-100 bg-slate-50/80 px-4 py-2.5 space-y-1.5">
-							<div class="flex items-center justify-between gap-3">
-								<div class="flex items-center gap-2 min-w-0">
-									<BellRing class={`h-4 w-4 shrink-0 ${pushEnabled ? 'text-brand-600' : 'text-slate-400'}`} />
-									<span class="text-xs font-semibold text-slate-700 truncate">
-										Alertes Push sur cet appareil
-									</span>
+						<div
+							class={`border-b px-4 py-2.5 space-y-1.5 ${
+								pushEnabled
+									? 'border-slate-100 bg-slate-50/80'
+									: 'border-amber-200/80 bg-amber-50/90'
+							}`}
+						>
+							<div class="flex items-center justify-between gap-2.5">
+								<div class="flex items-start gap-2 min-w-0">
+									{pushEnabled ? (
+										<BellRing class="h-4 w-4 shrink-0 text-brand-600 mt-0.5" />
+									) : (
+										<AlertTriangle class="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+									)}
+									<div class="min-w-0">
+										<p
+											class={`text-xs font-bold leading-tight ${
+												pushEnabled ? 'text-slate-800' : 'text-amber-950'
+											}`}
+										>
+											{pushEnabled
+												? 'Alertes Push activées'
+												: 'Notifications push désactivées'}
+										</p>
+										{!pushEnabled && (
+											<p class="text-[11px] text-amber-800/90 leading-snug mt-0.5">
+												Recevez vos validations Wave et rappels en direct.
+											</p>
+										)}
+									</div>
 								</div>
 								<button
 									type="button"
@@ -182,13 +226,13 @@ export default function NotificationBell() {
 									class={`shrink-0 rounded-lg px-2.5 py-1 text-xs font-bold border transition-colors cursor-pointer ${
 										pushEnabled
 											? 'border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100'
-											: 'border-brand-600 bg-brand-600 text-white hover:bg-brand-700'
+											: 'border-amber-600 bg-amber-600 text-white hover:bg-amber-700'
 									}`}
 								>
 									{pushBusy ? '...' : pushEnabled ? 'Activées ✓' : 'Activer'}
 								</button>
 							</div>
-							{pushHint && <p class="text-[11px] text-amber-800">{pushHint}</p>}
+							{pushHint && <p class="text-[11px] font-medium text-amber-900">{pushHint}</p>}
 						</div>
 					)}
 

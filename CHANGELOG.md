@@ -15,7 +15,8 @@ Le format suit les conventions [Keep a Changelog](https://keepachangelog.com/fr/
 - **Récupération & changement de mot de passe (`packages/db`, `workers/api`, `workers/web`)** :
   - Intégration des hooks Better Auth `sendResetPassword` (`revokeSessionsOnPasswordReset: true`) et `onPasswordReset` avec prise en charge multi-origines (`eventrip-abj.com`, `*.app.github.dev`).
   - Nouvelles pages `/forgot-password` (`ForgotPasswordForm`) et `/reset-password` (`ResetPasswordForm`) ainsi que le lien **« Mot de passe oublié ? »** sur `/auth`.
-  - Nouvelle page `/settings` (`SettingsPage` intégrant `ChangePasswordForm`) accessible via le menu compte de la barre de navigation (desktop & mobile) permettant aux utilisateurs connectés de modifier leur mot de passe sans consommer de quota email Resend.
+  - Nouvelle page `/settings` (`SettingsPage` regroupant *Profil & Commune préférée* via `GET/PATCH /api/me`, *Mot de passe & Sécurité* via `ChangePasswordForm`, et *Notifications Push*) accessible depuis le menu compte de la `Navbar` (desktop & mobile) sans consommer de quota email Resend.
+  - Amélioration de `NotificationBell` avec un bandeau d'avertissement ambre (*Notifications push désactivées* + bouton *Activer*) et une pastille indicatrice lorsque les alertes Push sont désactivées.
   - Traçabilité dans `audit_logs` des opérations `auth.password_reset` et `auth.password_change`.
 - **Gestion des quotas mail & Inspecteur d'audit enrichi (`workers/api`, `workers/web`)** :
   - Nouvelles routes Super Admin : `GET /api/super-admin/mail-quota`, `PATCH /api/super-admin/mail-quota` (journalisé sous `admin.mail_quota_update`) et `GET /api/super-admin/mail-logs`.
